@@ -1,68 +1,96 @@
 const places = window.WEIFANG_PLACES || [];
+
 const state = {
   activeCategory: "全部",
   query: "",
-  selectedId: places[0]?.id
+  selectedId: places[0]?.id,
+  threeD: true,
+  touring: false,
+  tourTimer: null
 };
 
 const categoryColors = {
-  "全部": "#2f5f4b",
-  "文化": "#2f5f4b",
-  "园林": "#8a5a24",
-  "非遗": "#a33d2d",
-  "古城": "#5d4b8c"
+  全部: "#245d4f",
+  文化: "#245d4f",
+  园林: "#8a5a24",
+  非遗: "#a33d2d",
+  古城: "#5d4b8c"
 };
 
-const map = L.map("map", {
-  zoomControl: false,
-  scrollWheelZoom: true
-}).setView([36.72, 119.05], 10);
+const map = new maplibregl.Map({
+  container: "map",
+  center: [119.05, 36.72],
+  zoom: 9.45,
+  pitch: 58,
+  bearing: -18,
+  antialias: true,
+  style: {
+    version: 8,
+    sources: {
+      osm: {
+        type: "raster",
+        tiles: ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        attribution: "© OpenStreetMap contributors"
+      }
+    },
+    layers: [
+      {
+        id: "osm",
+        type: "raster",
+        source: "osm"
+      }
+    ]
+  }
+});
 
-L.control.zoom({ position: "bottomright" }).addTo(map);
-
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-}).addTo(map);
-
-const markerLayer = L.layerGroup().addTo(map);
-const markers = new Map();
+map.addControl(
+  new maplibregl.NavigationControl({
+    visualizePitch: true,
+    showCompass: true,
+    showZoom: true
+  }),
+  "bottom-right"
+);
 
 const filters = document.getElementById("filters");
 const placeList = document.getElementById("placeList");
 const detailPanel = document.getElementById("detailPanel");
 const searchInput = document.getElementById("searchInput");
+const threeDButton = document.getElementById("threeDButton");
+const tourButton = document.getElementById("tourButton");
+const markers = new Map();
+
+function toLngLat(place) {
+  return [place.coordinates[1], place.coordinates[0]];
+}
 
 function uniqueCategories() {
   return ["全部", ...new Set(places.map((place) => place.category))];
 }
 
 function matchesPlace(place) {
-  const query = state.query.trim().toLowerCase();
   const categoryMatch = state.activeCategory === "全部" || place.category === state.activeCategory;
+  const query = state.query.trim().toLowerCase();
   if (!query) return categoryMatch;
 
-  const text = [
+  const searchableText = [
     place.name,
     place.category,
     place.district,
     place.address,
+    place.phone,
     place.tags.join(" "),
     place.highlights.join(" ")
   ]
     .join(" ")
     .toLowerCase();
 
-  return categoryMatch && text.includes(query);
+  return categoryMatch && searchableText.includes(query);
 }
 
 function filteredPlaces() {
   return places.filter(matchesPlace);
-}
-
-function markerHtml(place, isSelected) {
-  const color = categoryColors[place.category] || "#2f5f4b";
-  return `<button class="map-marker ${isSelected ? "is-selected" : ""}" style="--marker-color:${color}" aria-label="${place.name}"><span>${place.category}</span></button>`;
 }
 
 function renderFilters() {
@@ -74,44 +102,65 @@ function renderFilters() {
     .join("");
 }
 
+function createMarkerElement(place) {
+  const marker = document.createElement("button");
+  marker.className = "map-marker";
+  marker.type = "button";
+  marker.style.setProperty("--marker-color", categoryColors[place.category] || categoryColors.全部);
+  marker.setAttribute("aria-label", place.name);
+  marker.innerHTML = `
+    <span class="marker-pulse"></span>
+    <span class="marker-pin">${place.category}</span>
+    <strong>${place.name}</strong>
+  `;
+  marker.addEventListener("click", () => selectPlace(place.id, true));
+  return marker;
+}
+
 function renderMarkers() {
-  markerLayer.clearLayers();
-  markers.clear();
+  const visibleIds = new Set(filteredPlaces().map((place) => place.id));
+
+  markers.forEach((marker, id) => {
+    if (!visibleIds.has(id)) {
+      marker.remove();
+      markers.delete(id);
+    }
+  });
 
   filteredPlaces().forEach((place) => {
-    const marker = L.marker(place.coordinates, {
-      icon: L.divIcon({
-        className: "marker-shell",
-        html: markerHtml(place, place.id === state.selectedId),
-        iconSize: [78, 34],
-        iconAnchor: [39, 17]
+    let marker = markers.get(place.id);
+    if (!marker) {
+      marker = new maplibregl.Marker({
+        element: createMarkerElement(place),
+        anchor: "bottom",
+        offset: [0, -8]
       })
-    });
+        .setLngLat(toLngLat(place))
+        .addTo(map);
+      markers.set(place.id, marker);
+    }
 
-    marker.on("click", () => selectPlace(place.id, true));
-    marker.addTo(markerLayer);
-    markers.set(place.id, marker);
+    marker.getElement().classList.toggle("is-selected", place.id === state.selectedId);
   });
 }
 
 function renderList() {
   const visiblePlaces = filteredPlaces();
-
   if (!visiblePlaces.length) {
     placeList.innerHTML = '<p class="empty-state">没有匹配的已核验地点。</p>';
     return;
   }
 
   placeList.innerHTML = visiblePlaces
-    .map((place) => {
+    .map((place, index) => {
       const active = place.id === state.selectedId ? "is-active" : "";
-      const tagText = place.tags.slice(0, 3).map((tag) => `<span>${tag}</span>`).join("");
+      const tags = place.tags.slice(0, 3).map((tag) => `<span>${tag}</span>`).join("");
       return `
-        <button class="place-card ${active}" data-place-id="${place.id}" type="button">
-          <span class="place-card__meta">${place.district} · ${place.category} · 核验${place.confidence}</span>
+        <button class="place-card ${active}" data-place-id="${place.id}" type="button" style="--delay:${index * 70}ms">
+          <span>${place.district} · ${place.category} · 核验${place.confidence}</span>
           <strong>${place.name}</strong>
           <small>${place.address}</small>
-          <span class="tag-row">${tagText}</span>
+          <em>${tags}</em>
         </button>
       `;
     })
@@ -125,27 +174,25 @@ function renderDetail() {
     return;
   }
 
+  const tags = place.tags.map((tag) => `<span>${tag}</span>`).join("");
   const highlights = place.highlights.map((item) => `<li>${item}</li>`).join("");
   const sources = place.sources
     .map((source) => `<a href="${source.url}" target="_blank" rel="noreferrer">${source.label}</a>`)
     .join("");
-  const tags = place.tags.map((tag) => `<span>${tag}</span>`).join("");
 
   detailPanel.innerHTML = `
     <article class="place-detail">
       <div class="detail-image" style="background-image:url('${place.image.url}')">
         <span>${place.image.credit}</span>
       </div>
-      <div class="detail-body">
-        <div class="detail-title">
-          <div>
-            <p>${place.district} · ${place.category}</p>
-            <h2>${place.name}</h2>
-          </div>
+      <div class="detail-content">
+        <div class="detail-heading">
+          <p>${place.district} · ${place.category}</p>
+          <h2>${place.name}</h2>
           <span>核验${place.confidence}</span>
         </div>
         <div class="detail-tags">${tags}</div>
-        <dl class="fact-grid">
+        <dl class="facts">
           <div><dt>地址</dt><dd>${place.address}</dd></div>
           <div><dt>电话</dt><dd>${place.phone}</dd></div>
           <div><dt>开放</dt><dd>${place.hours}</dd></div>
@@ -153,7 +200,7 @@ function renderDetail() {
         </dl>
         <ul class="highlights">${highlights}</ul>
         <div class="source-list">
-          <strong>来源</strong>
+          <strong>公开来源</strong>
           ${sources}
         </div>
       </div>
@@ -161,20 +208,87 @@ function renderDetail() {
   `;
 }
 
-function syncMapView() {
+function renderRouteLayer() {
+  const visiblePlaces = filteredPlaces();
+  const features =
+    visiblePlaces.length > 1
+      ? [
+          {
+            type: "Feature",
+            geometry: {
+              type: "LineString",
+              coordinates: visiblePlaces.map(toLngLat)
+            }
+          }
+        ]
+      : [];
+
+  const source = map.getSource("place-route");
+  const route = {
+    type: "FeatureCollection",
+    features
+  };
+
+  if (source) {
+    source.setData(route);
+    return;
+  }
+
+  map.addSource("place-route", {
+    type: "geojson",
+    data: route
+  });
+
+  map.addLayer({
+    id: "place-route-glow",
+    type: "line",
+    source: "place-route",
+    paint: {
+      "line-color": "#f0b35a",
+      "line-opacity": 0.38,
+      "line-width": 8,
+      "line-blur": 4
+    }
+  });
+
+  map.addLayer({
+    id: "place-route",
+    type: "line",
+    source: "place-route",
+    paint: {
+      "line-color": "#a33d2d",
+      "line-opacity": 0.72,
+      "line-width": 2,
+      "line-dasharray": [1.2, 1.2]
+    }
+  });
+}
+
+function flyToPlace(place, zoom = 13.6) {
+  map.flyTo({
+    center: toLngLat(place),
+    zoom,
+    pitch: state.threeD ? 64 : 0,
+    bearing: state.threeD ? -28 : 0,
+    speed: 0.75,
+    curve: 1.35,
+    essential: true
+  });
+}
+
+function fitVisiblePlaces() {
   const visiblePlaces = filteredPlaces();
   if (!visiblePlaces.length) return;
 
-  if (state.selectedId) {
-    const selected = visiblePlaces.find((place) => place.id === state.selectedId);
-    if (selected) {
-      map.flyTo(selected.coordinates, Math.max(map.getZoom(), 12), { duration: 0.45 });
-      return;
-    }
-  }
-
-  const bounds = L.latLngBounds(visiblePlaces.map((place) => place.coordinates));
-  map.fitBounds(bounds.pad(0.2), { maxZoom: 11 });
+  const bounds = new maplibregl.LngLatBounds();
+  visiblePlaces.forEach((place) => bounds.extend(toLngLat(place)));
+  map.fitBounds(bounds, {
+    padding: { top: 170, right: 470, bottom: 170, left: 70 },
+    maxZoom: 10.4,
+    pitch: state.threeD ? 56 : 0,
+    bearing: state.threeD ? -18 : 0,
+    duration: 700
+  });
 }
 
 function selectPlace(id, moveMap = false) {
@@ -185,7 +299,7 @@ function selectPlace(id, moveMap = false) {
 
   if (moveMap) {
     const place = places.find((item) => item.id === id);
-    if (place) map.flyTo(place.coordinates, 14, { duration: 0.45 });
+    if (place) flyToPlace(place);
   }
 }
 
@@ -199,7 +313,38 @@ function renderAll({ moveMap = false } = {}) {
   renderMarkers();
   renderList();
   renderDetail();
-  if (moveMap) syncMapView();
+  if (map.loaded()) renderRouteLayer();
+  if (moveMap) fitVisiblePlaces();
+}
+
+function toggleThreeD() {
+  state.threeD = !state.threeD;
+  threeDButton.classList.toggle("is-active", state.threeD);
+  threeDButton.setAttribute("aria-pressed", String(state.threeD));
+
+  const selected = places.find((place) => place.id === state.selectedId);
+  if (selected) flyToPlace(selected, map.getZoom());
+}
+
+function advanceTour() {
+  const visiblePlaces = filteredPlaces();
+  if (!visiblePlaces.length) return;
+  const currentIndex = Math.max(0, visiblePlaces.findIndex((place) => place.id === state.selectedId));
+  const nextPlace = visiblePlaces[(currentIndex + 1) % visiblePlaces.length];
+  selectPlace(nextPlace.id, true);
+}
+
+function toggleTour() {
+  state.touring = !state.touring;
+  tourButton.classList.toggle("is-active", state.touring);
+  tourButton.setAttribute("aria-pressed", String(state.touring));
+
+  if (state.touring) {
+    advanceTour();
+    state.tourTimer = window.setInterval(advanceTour, 5200);
+  } else {
+    window.clearInterval(state.tourTimer);
+  }
 }
 
 filters.addEventListener("click", (event) => {
@@ -212,6 +357,7 @@ filters.addEventListener("click", (event) => {
 placeList.addEventListener("click", (event) => {
   const button = event.target.closest("[data-place-id]");
   if (!button) return;
+  if (state.touring) toggleTour();
   selectPlace(button.dataset.placeId, true);
 });
 
@@ -220,4 +366,10 @@ searchInput.addEventListener("input", (event) => {
   renderAll({ moveMap: true });
 });
 
-renderAll({ moveMap: true });
+threeDButton.addEventListener("click", toggleThreeD);
+tourButton.addEventListener("click", toggleTour);
+
+map.on("load", () => {
+  renderAll({ moveMap: true });
+  threeDButton.classList.add("is-active");
+});

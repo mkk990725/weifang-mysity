@@ -6,48 +6,46 @@
     <title>潍坊好吃好玩地图</title>
     <link
       rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIINfQK8GKt2eyYtHn6CB87J47t2gqs4pG8="
-      crossorigin=""
+      href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
     />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="sidebar" aria-label="潍坊地点列表">
+    <main class="map-app">
+      <div id="map" aria-label="潍坊好吃好玩地图"></div>
+
+      <section class="top-panel" aria-label="地图工具">
         <header class="brand">
           <div>
-            <p class="eyebrow">Weifang City Map</p>
+            <p>Weifang City Map</p>
             <h1>潍坊好吃好玩地图</h1>
           </div>
-          <span class="data-badge">已核验 5</span>
+          <span>已核验 5</span>
         </header>
 
-        <div class="search-box">
-          <input id="searchInput" type="search" placeholder="搜索地点、区域、标签" aria-label="搜索地点" />
+        <div class="tool-row">
+          <label class="search-box">
+            <span>搜索</span>
+            <input id="searchInput" type="search" placeholder="地点、区域、标签" />
+          </label>
+          <button class="icon-action" id="threeDButton" type="button" aria-pressed="true">3D</button>
+          <button class="icon-action" id="tourButton" type="button" aria-pressed="false">巡游</button>
         </div>
 
-        <div class="filters" id="filters" aria-label="地点分类筛选"></div>
+        <div class="filters" id="filters" aria-label="地点分类"></div>
+      </section>
 
-        <section class="quality-panel" aria-label="数据标准">
-          <strong>数据边界</strong>
-          <p>只收录可追溯来源的推荐地点；不展示负面评价，不基于个人主观发挥生成结论。</p>
-        </section>
+      <section class="map-note" aria-label="数据说明">
+        <strong>只推荐已核验地点</strong>
+        <span>公开来源、经营信息、地址电话和开放时间优先；不做拉踩。</span>
+      </section>
 
-        <div class="place-list" id="placeList" aria-label="地点结果"></div>
-      </aside>
+      <section class="place-strip" id="placeList" aria-label="地点列表"></section>
 
-      <main class="map-stage">
-        <div id="map" aria-label="潍坊地图"></div>
-        <section class="detail-panel" id="detailPanel" aria-live="polite"></section>
-      </main>
-    </div>
+      <aside class="detail-drawer" id="detailPanel" aria-live="polite"></aside>
+    </main>
 
-    <script
-      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-      crossorigin=""
-    ></script>
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
     <script src="./places.js"></script>
     <script src="./app.js"></script>
   </body>
