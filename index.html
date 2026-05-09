@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>潍坊好吃好玩地图</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIINfQK8GKt2eyYtHn6CB87J47t2gqs4pG8="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="潍坊地点列表">
+        <header class="brand">
+          <div>
+            <p class="eyebrow">Weifang City Map</p>
+            <h1>潍坊好吃好玩地图</h1>
+          </div>
+          <span class="data-badge">已核验 5</span>
+        </header>
+
+        <div class="search-box">
+          <input id="searchInput" type="search" placeholder="搜索地点、区域、标签" aria-label="搜索地点" />
+        </div>
+
+        <div class="filters" id="filters" aria-label="地点分类筛选"></div>
+
+        <section class="quality-panel" aria-label="数据标准">
+          <strong>数据边界</strong>
+          <p>只收录可追溯来源的推荐地点；不展示负面评价，不基于个人主观发挥生成结论。</p>
+        </section>
+
+        <div class="place-list" id="placeList" aria-label="地点结果"></div>
+      </aside>
+
+      <main class="map-stage">
+        <div id="map" aria-label="潍坊地图"></div>
+        <section class="detail-panel" id="detailPanel" aria-live="polite"></section>
+      </main>
+    </div>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="./places.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
