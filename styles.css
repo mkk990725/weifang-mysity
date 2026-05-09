@@ -248,6 +248,11 @@ h1 {
   animation: riseIn 460ms ease both;
   animation-delay: var(--delay);
   backdrop-filter: blur(12px);
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease,
+    background 180ms ease;
 }
 
 .place-card.is-active {
@@ -299,6 +304,14 @@ h1 {
   overflow: auto;
   border-radius: 8px;
   box-shadow: var(--shadow);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.detail-drawer.is-switching {
+  opacity: 0.7;
+  transform: translateY(5px);
 }
 
 .place-detail {
@@ -437,6 +450,10 @@ h1 {
   box-shadow: 0 12px 24px rgb(0 0 0 / 30%);
   font-size: 13px;
   font-weight: 900;
+  transition:
+    outline-color 180ms ease,
+    transform 220ms ease,
+    box-shadow 220ms ease;
 }
 
 .map-marker strong {
@@ -480,6 +497,7 @@ h1 {
 .map-marker.is-selected .marker-pin {
   outline: 4px solid rgb(194 138 58 / 36%);
   transform: translateY(-4px) scale(1.06);
+  box-shadow: 0 16px 30px rgb(0 0 0 / 34%);
 }
 
 .empty-state {

@@ -6,7 +6,8 @@ const state = {
   selectedId: places[0]?.id,
   threeD: true,
   touring: false,
-  tourTimer: null
+  tourTimer: null,
+  moving: false
 };
 
 const categoryColors = {
@@ -60,6 +61,7 @@ const searchInput = document.getElementById("searchInput");
 const threeDButton = document.getElementById("threeDButton");
 const tourButton = document.getElementById("tourButton");
 const markers = new Map();
+let lastDetailId = null;
 
 function toLngLat(place) {
   return [place.coordinates[1], place.coordinates[0]];
@@ -144,6 +146,12 @@ function renderMarkers() {
   });
 }
 
+function updateMarkerSelection() {
+  markers.forEach((marker, id) => {
+    marker.getElement().classList.toggle("is-selected", id === state.selectedId);
+  });
+}
+
 function renderList() {
   const visiblePlaces = filteredPlaces();
   if (!visiblePlaces.length) {
@@ -167,12 +175,30 @@ function renderList() {
     .join("");
 }
 
+function updateListSelection() {
+  placeList.querySelectorAll("[data-place-id]").forEach((card) => {
+    const isSelected = card.dataset.placeId === state.selectedId;
+    card.classList.toggle("is-active", isSelected);
+    if (isSelected) {
+      card.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center"
+      });
+    }
+  });
+}
+
 function renderDetail() {
   const place = places.find((item) => item.id === state.selectedId) || filteredPlaces()[0] || places[0];
   if (!place) {
     detailPanel.innerHTML = "";
     return;
   }
+
+  if (place.id === lastDetailId) return;
+  lastDetailId = place.id;
+  detailPanel.classList.add("is-switching");
 
   const tags = place.tags.map((tag) => `<span>${tag}</span>`).join("");
   const highlights = place.highlights.map((item) => `<li>${item}</li>`).join("");
@@ -206,6 +232,10 @@ function renderDetail() {
       </div>
     </article>
   `;
+
+  window.requestAnimationFrame(() => {
+    detailPanel.classList.remove("is-switching");
+  });
 }
 
 function renderRouteLayer() {
@@ -264,14 +294,17 @@ function renderRouteLayer() {
   });
 }
 
-function flyToPlace(place, zoom = 13.6) {
-  map.flyTo({
+function easeToPlace(place, zoom = 13.15) {
+  if (state.moving) map.stop();
+  state.moving = true;
+
+  map.easeTo({
     center: toLngLat(place),
     zoom,
     pitch: state.threeD ? 64 : 0,
-    bearing: state.threeD ? -28 : 0,
-    speed: 0.75,
-    curve: 1.35,
+    bearing: state.threeD ? -24 : 0,
+    duration: 980,
+    easing: (time) => 1 - Math.pow(1 - time, 3),
     essential: true
   });
 }
@@ -292,14 +325,20 @@ function fitVisiblePlaces() {
 }
 
 function selectPlace(id, moveMap = false) {
+  if (state.selectedId === id) {
+    const current = places.find((item) => item.id === id);
+    if (moveMap && current) easeToPlace(current, Math.max(map.getZoom(), 13.15));
+    return;
+  }
+
   state.selectedId = id;
-  renderMarkers();
-  renderList();
+  updateMarkerSelection();
+  updateListSelection();
   renderDetail();
 
   if (moveMap) {
     const place = places.find((item) => item.id === id);
-    if (place) flyToPlace(place);
+    if (place) easeToPlace(place);
   }
 }
 
@@ -312,6 +351,8 @@ function renderAll({ moveMap = false } = {}) {
   renderFilters();
   renderMarkers();
   renderList();
+  updateMarkerSelection();
+  updateListSelection();
   renderDetail();
   if (map.loaded()) renderRouteLayer();
   if (moveMap) fitVisiblePlaces();
@@ -323,7 +364,7 @@ function toggleThreeD() {
   threeDButton.setAttribute("aria-pressed", String(state.threeD));
 
   const selected = places.find((place) => place.id === state.selectedId);
-  if (selected) flyToPlace(selected, map.getZoom());
+  if (selected) easeToPlace(selected, map.getZoom());
 }
 
 function advanceTour() {
@@ -372,4 +413,8 @@ tourButton.addEventListener("click", toggleTour);
 map.on("load", () => {
   renderAll({ moveMap: true });
   threeDButton.classList.add("is-active");
+});
+
+map.on("moveend", () => {
+  state.moving = false;
 });
