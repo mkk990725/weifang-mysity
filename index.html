@@ -4,19 +4,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>潍坊好吃好玩地图</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=living-map-20260511d" />
   </head>
   <body>
     <main class="map-app">
-      <div id="map" aria-label="潍坊好吃好玩地图">
-        <div class="fallback-tiles" id="fallbackTiles" aria-hidden="true"></div>
-        <div class="tile-attribution">© AutoNavi</div>
-      </div>
-
       <section class="top-panel" aria-label="地图工具">
         <header class="brand">
           <div>
-            <p>Weifang City Map</p>
+            <p>Weifang Living Map</p>
             <h1>潍坊好吃好玩地图</h1>
           </div>
           <span>已核验 5</span>
@@ -27,25 +22,62 @@
             <span>搜索</span>
             <input id="searchInput" type="search" placeholder="地点、区域、标签" />
           </label>
-          <button class="icon-action" id="threeDButton" type="button" aria-pressed="false">3D</button>
+          <button class="icon-action" id="zoomOutButton" type="button" title="缩小">-</button>
+          <button class="icon-action" id="zoomInButton" type="button" title="放大">+</button>
+          <button class="icon-action" id="editButton" type="button" aria-pressed="false">编辑</button>
           <button class="icon-action" id="tourButton" type="button" aria-pressed="false">巡游</button>
         </div>
 
         <div class="filters" id="filters" aria-label="地点分类"></div>
       </section>
 
+      <section class="living-map" id="map" aria-label="潍坊手绘活地图">
+        <div class="map-canvas" id="mapCanvas">
+          <svg class="hand-map" id="handMap" viewBox="0 0 1400 900" role="img" aria-label="潍坊手绘地图">
+            <defs>
+              <filter id="ink-wobble">
+                <feTurbulence baseFrequency="0.012" numOctaves="2" seed="7" />
+                <feDisplacementMap in="SourceGraphic" scale="1.4" />
+              </filter>
+            </defs>
+            <rect class="paper-fill" x="0" y="0" width="1400" height="900" />
+            <path class="river river-main" d="M70 645 C230 570 305 610 430 535 C570 450 700 510 850 420 C1020 315 1125 350 1330 265" />
+            <path class="river river-side" d="M500 840 C610 730 680 675 790 610 C890 550 950 500 1010 420" />
+            <path class="road road-major" d="M85 420 C250 330 400 360 555 330 C740 300 890 240 1315 210" />
+            <path class="road road-major" d="M150 760 C355 640 560 655 720 590 C890 520 1110 565 1280 450" />
+            <path class="road road-minor" d="M255 160 C350 285 390 380 500 505 C610 635 710 705 830 785" />
+            <path class="road road-minor" d="M1030 125 C960 265 945 380 900 520 C860 640 800 710 760 835" />
+            <path class="road road-minor" d="M330 705 C430 580 540 520 620 410 C700 300 820 265 990 210" />
+            <g class="route-layer" id="routeLayer"></g>
+            <g class="footsteps-layer" id="footstepsLayer"></g>
+            <g class="label-layer">
+              <text x="210" y="250">潍城老街</text>
+              <text x="760" y="330">奎文城心</text>
+              <text x="985" y="585">风筝走廊</text>
+              <text x="430" y="745">青州方向</text>
+            </g>
+          </svg>
+          <div class="marker-layer" id="markerLayer"></div>
+        </div>
+      </section>
+
       <section class="map-note" aria-label="数据说明">
-        <strong>只推荐已核验地点</strong>
-        <span>公开来源、经营信息、地址电话和开放时间优先；不做拉踩。</span>
+        <strong>真实信息，手绘表达</strong>
+        <span>地点、地址、电话和来源保留真实核验信息；地图路线和点位布局可以编辑，不复制真实底图。</span>
       </section>
 
       <section class="place-strip" id="placeList" aria-label="地点列表"></section>
 
       <aside class="detail-drawer" id="detailPanel" aria-live="polite"></aside>
+
+      <aside class="edit-panel" id="editPanel" aria-label="编辑输出">
+        <strong>布局编辑</strong>
+        <span>开启编辑后拖动路牌，只改变手绘布局，不改变真实经纬度。</span>
+        <textarea id="layoutOutput" readonly></textarea>
+      </aside>
     </main>
 
-    <script src="./config.js"></script>
-    <script src="./places.js"></script>
-    <script src="./app.js"></script>
+    <script src="./places.js?v=living-map-20260511d"></script>
+    <script src="./app.js?v=living-map-20260511d"></script>
   </body>
 </html>

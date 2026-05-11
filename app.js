@@ -1,187 +1,82 @@
 const places = window.WEIFANG_PLACES || [];
-const mapConfig = window.WEIFANG_MAP_CONFIG || {};
+
+const WORLD = {
+  width: 1400,
+  height: 900,
+  padX: 120,
+  padY: 110
+};
 
 const state = {
   activeCategory: "全部",
   query: "",
   selectedId: places[0]?.id,
-  threeD: false,
+  scale: 1,
+  tx: 0,
+  ty: 0,
+  editMode: false,
   touring: false,
   tourTimer: null,
-  moving: false,
-  initialized: false
+  layout: {}
 };
 
 const categoryColors = {
-  全部: "#245d4f",
-  文化: "#245d4f",
-  园林: "#8a5a24",
-  非遗: "#a33d2d",
+  全部: "#2d6654",
+  文化: "#2d6654",
+  园林: "#8a6024",
+  非遗: "#ad4637",
   古城: "#5d4b8c"
 };
-
-let map = null;
-let routeLine = null;
-let lastDetailId = null;
-const markers = new Map();
 
 const filters = document.getElementById("filters");
 const placeList = document.getElementById("placeList");
 const detailPanel = document.getElementById("detailPanel");
 const searchInput = document.getElementById("searchInput");
-const threeDButton = document.getElementById("threeDButton");
+const markerLayer = document.getElementById("markerLayer");
+const routeLayer = document.getElementById("routeLayer");
+const footstepsLayer = document.getElementById("footstepsLayer");
+const mapCanvas = document.getElementById("mapCanvas");
+const editButton = document.getElementById("editButton");
 const tourButton = document.getElementById("tourButton");
-const mapContainer = document.getElementById("map");
-const fallbackTiles = document.getElementById("fallbackTiles");
+const zoomInButton = document.getElementById("zoomInButton");
+const zoomOutButton = document.getElementById("zoomOutButton");
+const editPanel = document.getElementById("editPanel");
+const layoutOutput = document.getElementById("layoutOutput");
+const mapViewport = document.getElementById("map");
 
-function toLngLat(place) {
-  return place.amapPosition || [place.coordinates[1], place.coordinates[0]];
-}
+const bounds = places.reduce(
+  (box, place) => {
+    const [lat, lng] = place.coordinates;
+    return {
+      minLat: Math.min(box.minLat, lat),
+      maxLat: Math.max(box.maxLat, lat),
+      minLng: Math.min(box.minLng, lng),
+      maxLng: Math.max(box.maxLng, lng)
+    };
+  },
+  { minLat: Infinity, maxLat: -Infinity, minLng: Infinity, maxLng: -Infinity }
+);
 
-function lngLatToTile(lng, lat, zoom) {
-  const sinLat = Math.sin((lat * Math.PI) / 180);
-  const scale = 2 ** zoom;
+function project(place) {
+  if (state.layout[place.id]) return state.layout[place.id];
+
+  const [lat, lng] = place.coordinates;
+  const width = WORLD.width - WORLD.padX * 2;
+  const height = WORLD.height - WORLD.padY * 2;
+  const lngSpan = Math.max(0.01, bounds.maxLng - bounds.minLng);
+  const latSpan = Math.max(0.01, bounds.maxLat - bounds.minLat);
   return {
-    x: ((lng + 180) / 360) * scale,
-    y: (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale
+    x: WORLD.padX + ((lng - bounds.minLng) / lngSpan) * width,
+    y: WORLD.height - WORLD.padY - ((lat - bounds.minLat) / latSpan) * height
   };
 }
 
-function renderFallbackTiles() {
-  if (!map || !fallbackTiles) return;
-
-  const zoom = Math.max(3, Math.min(18, Math.floor(map.getZoom())));
-  const center = map.getCenter();
-  const centerTile = lngLatToTile(center.lng, center.lat, zoom);
-  const mapRect = mapContainer.getBoundingClientRect();
-  const tileSize = 256;
-  const columns = Math.ceil(mapRect.width / tileSize) + 3;
-  const rows = Math.ceil(mapRect.height / tileSize) + 3;
-  const startX = Math.floor(centerTile.x - columns / 2);
-  const startY = Math.floor(centerTile.y - rows / 2);
-  const maxTile = 2 ** zoom;
-  const centerOffsetX = mapRect.width / 2 - (centerTile.x - Math.floor(centerTile.x)) * tileSize;
-  const centerOffsetY = mapRect.height / 2 - (centerTile.y - Math.floor(centerTile.y)) * tileSize;
-  const tiles = [];
-
-  for (let row = 0; row < rows; row += 1) {
-    for (let column = 0; column < columns; column += 1) {
-      const x = startX + column;
-      const y = startY + row;
-      if (y < 0 || y >= maxTile) continue;
-
-      const wrappedX = ((x % maxTile) + maxTile) % maxTile;
-      const left = centerOffsetX + (x - Math.floor(centerTile.x)) * tileSize;
-      const top = centerOffsetY + (y - Math.floor(centerTile.y)) * tileSize;
-      const subdomain = ((wrappedX + y) % 4) + 1;
-      tiles.push(
-        `<img class="fallback-tile" src="https://webrd0${subdomain}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x=${wrappedX}&y=${y}&z=${zoom}" alt="" style="left:${left}px;top:${top}px" onerror="this.style.display='none'" />`
-      );
-    }
-  }
-
-  fallbackTiles.innerHTML = tiles.join("");
-}
-
-function showMapError(message) {
-  mapContainer.innerHTML = `<div class="map-error"><strong>地图未加载</strong><span>${message}</span></div>`;
-}
-
-function loadAmap() {
-  if (!mapConfig.amapKey) {
-    showMapError("请复制 config.example.js 为 config.js，并填入高德 Web JS API Key。");
-    return;
-  }
-
-  if (mapConfig.amapSecurityJsCode) {
-    window._AMapSecurityConfig = {
-      securityJsCode: mapConfig.amapSecurityJsCode
-    };
-  }
-
-  const script = document.createElement("script");
-  script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(
-    mapConfig.amapKey
-  )}&plugin=AMap.ControlBar,AMap.ToolBar,AMap.Scale`;
-  script.async = true;
-  script.onerror = () => showMapError("高德地图脚本加载失败，请检查 Key、网络和高德后台安全配置。");
-  script.onload = initMap;
-  document.head.appendChild(script);
-}
-
-function initMap() {
-  try {
-    const baseLayer = new AMap.TileLayer({
-      zIndex: 1,
-      opacity: 1,
-      detectRetina: true
-    });
-
-    map = new AMap.Map("map", {
-      viewMode: "3D",
-      center: [119.05, 36.72],
-      zoom: 10.8,
-      pitch: 0,
-      rotation: 0,
-      resizeEnable: true,
-      animateEnable: true,
-      mapStyle: "amap://styles/normal",
-      features: ["bg", "road", "building", "point"],
-      layers: [baseLayer]
-    });
-
-    AMap.plugin(["AMap.ControlBar", "AMap.ToolBar", "AMap.Scale"], () => {
-      map.addControl(
-        new AMap.ControlBar({
-          position: {
-            right: "18px",
-            bottom: "138px"
-          }
-        })
-      );
-      map.addControl(
-        new AMap.ToolBar({
-          position: {
-            right: "18px",
-            bottom: "76px"
-          }
-        })
-      );
-      map.addControl(new AMap.Scale());
-    });
-
-    convertCoordinates().finally(() => {
-      state.initialized = true;
-      renderAll({ moveMap: false });
-      focusInitialMap();
-      renderFallbackTiles();
-    });
-
-    map.on("moveend", () => {
-      state.moving = false;
-      renderFallbackTiles();
-    });
-    map.on("zoomend", renderFallbackTiles);
-  } catch (error) {
-    showMapError("高德地图初始化失败，请检查 Web JS Key 是否启用、域名白名单和安全密钥配置。");
-    console.error(error);
-  }
-}
-
-function convertCoordinates() {
-  if (!AMap.convertFrom || !places.length) return Promise.resolve();
-
-  return new Promise((resolve) => {
-    const gpsPositions = places.map((place) => [place.coordinates[1], place.coordinates[0]]);
-    AMap.convertFrom(gpsPositions, "gps", (status, result) => {
-      if (status === "complete" && result.locations?.length) {
-        result.locations.forEach((location, index) => {
-          places[index].amapPosition = [location.lng, location.lat];
-        });
-      }
-      resolve();
-    });
-  });
+function screenToWorld(clientX, clientY) {
+  const rect = mapViewport.getBoundingClientRect();
+  return {
+    x: (clientX - rect.left - state.tx) / state.scale,
+    y: (clientY - rect.top - state.ty) / state.scale
+  };
 }
 
 function uniqueCategories() {
@@ -193,7 +88,7 @@ function matchesPlace(place) {
   const query = state.query.trim().toLowerCase();
   if (!query) return categoryMatch;
 
-  const searchableText = [
+  const text = [
     place.name,
     place.category,
     place.district,
@@ -205,11 +100,24 @@ function matchesPlace(place) {
     .join(" ")
     .toLowerCase();
 
-  return categoryMatch && searchableText.includes(query);
+  return categoryMatch && text.includes(query);
 }
 
 function filteredPlaces() {
   return places.filter(matchesPlace);
+}
+
+function pathFromPoints(points) {
+  if (!points.length) return "";
+  return points
+    .map((point, index) => {
+      if (index === 0) return `M ${point.x} ${point.y}`;
+      const prev = points[index - 1];
+      const cx = (prev.x + point.x) / 2;
+      const cy = (prev.y + point.y) / 2 - 38;
+      return `Q ${cx} ${cy} ${point.x} ${point.y}`;
+    })
+    .join(" ");
 }
 
 function renderFilters() {
@@ -221,66 +129,59 @@ function renderFilters() {
     .join("");
 }
 
-function createMarkerElement(place) {
-  const marker = document.createElement("button");
-  marker.className = "map-marker";
-  marker.type = "button";
-  marker.style.setProperty("--marker-color", categoryColors[place.category] || categoryColors.全部);
-  marker.setAttribute("aria-label", place.name);
-  marker.innerHTML = `
-    <span class="marker-pulse"></span>
-    <span class="marker-post"></span>
-    <span class="marker-pin">${place.category}</span>
-    <strong>${place.name}</strong>
-  `;
-  marker.addEventListener("click", () => selectPlace(place.id, true));
-  return marker;
+function renderRoute() {
+  const visible = filteredPlaces();
+  const points = visible.map(project);
+  const path = pathFromPoints(points);
+  routeLayer.innerHTML = path
+    ? `<path class="living-route" d="${path}" pathLength="100" />`
+    : "";
+
+  const steps = [];
+  for (let index = 1; index < points.length; index += 1) {
+    const start = points[index - 1];
+    const end = points[index];
+    const count = 5;
+    for (let step = 1; step <= count; step += 1) {
+      const t = step / (count + 1);
+      const x = start.x + (end.x - start.x) * t;
+      const y = start.y + (end.y - start.y) * t;
+      const angle = (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI;
+      steps.push(`<g class="footstep" style="--delay:${(index * count + step) * 120}ms" transform="translate(${x} ${y}) rotate(${angle})">
+        <ellipse cx="-5" cy="-3" rx="3" ry="6" />
+        <ellipse cx="5" cy="3" rx="3" ry="6" />
+      </g>`);
+    }
+  }
+  footstepsLayer.innerHTML = steps.join("");
 }
 
 function renderMarkers() {
-  if (!map) return;
-  const visibleIds = new Set(filteredPlaces().map((place) => place.id));
-
-  markers.forEach((marker, id) => {
-    if (!visibleIds.has(id)) {
-      map.remove(marker);
-      markers.delete(id);
-    }
-  });
-
-  filteredPlaces().forEach((place) => {
-    let marker = markers.get(place.id);
-    if (!marker) {
-      marker = new AMap.Marker({
-        position: toLngLat(place),
-        content: createMarkerElement(place),
-        anchor: "bottom-center",
-        offset: new AMap.Pixel(0, -8)
-      });
-      marker.setMap(map);
-      markers.set(place.id, marker);
-    } else {
-      marker.setPosition(toLngLat(place));
-    }
-
-    marker.getContent().classList.toggle("is-selected", place.id === state.selectedId);
-  });
-}
-
-function updateMarkerSelection() {
-  markers.forEach((marker, id) => {
-    marker.getContent().classList.toggle("is-selected", id === state.selectedId);
-  });
+  markerLayer.innerHTML = filteredPlaces()
+    .map((place) => {
+      const point = project(place);
+      const selected = place.id === state.selectedId ? "is-selected" : "";
+      const editable = state.editMode ? "is-editable" : "";
+      const color = categoryColors[place.category] || categoryColors.全部;
+      return `
+        <button class="map-marker ${selected} ${editable}" data-place-id="${place.id}" type="button" style="--x:${point.x}px;--y:${point.y}px;--marker-color:${color}">
+          <span class="marker-post"></span>
+          <span class="marker-pin">${place.category}</span>
+          <strong>${place.name}</strong>
+        </button>
+      `;
+    })
+    .join("");
 }
 
 function renderList() {
-  const visiblePlaces = filteredPlaces();
-  if (!visiblePlaces.length) {
+  const visible = filteredPlaces();
+  if (!visible.length) {
     placeList.innerHTML = '<p class="empty-state">没有匹配的已核验地点。</p>';
     return;
   }
 
-  placeList.innerHTML = visiblePlaces
+  placeList.innerHTML = visible
     .map((place, index) => {
       const active = place.id === state.selectedId ? "is-active" : "";
       const tags = place.tags.slice(0, 3).map((tag) => `<span>${tag}</span>`).join("");
@@ -296,30 +197,12 @@ function renderList() {
     .join("");
 }
 
-function updateListSelection() {
-  placeList.querySelectorAll("[data-place-id]").forEach((card) => {
-    const isSelected = card.dataset.placeId === state.selectedId;
-    card.classList.toggle("is-active", isSelected);
-    if (isSelected) {
-      card.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-        inline: "center"
-      });
-    }
-  });
-}
-
 function renderDetail() {
   const place = places.find((item) => item.id === state.selectedId) || filteredPlaces()[0] || places[0];
   if (!place) {
     detailPanel.innerHTML = "";
     return;
   }
-
-  if (place.id === lastDetailId) return;
-  lastDetailId = place.id;
-  detailPanel.classList.add("is-switching");
 
   const tags = place.tags.map((tag) => `<span>${tag}</span>`).join("");
   const highlights = place.highlights.map((item) => `<li>${item}</li>`).join("");
@@ -353,135 +236,173 @@ function renderDetail() {
       </div>
     </article>
   `;
-
-  window.requestAnimationFrame(() => {
-    detailPanel.classList.remove("is-switching");
-  });
 }
 
-function renderRouteLayer() {
-  if (!map) return;
-  const path = filteredPlaces().map(toLngLat);
-  if (path.length < 2) {
-    if (routeLine) routeLine.hide();
-    return;
-  }
+function updateLayoutOutput() {
+  const data = Object.fromEntries(
+    Object.entries(state.layout).map(([id, point]) => [id, {
+      x: Math.round(point.x),
+      y: Math.round(point.y)
+    }])
+  );
+  layoutOutput.value = JSON.stringify(data, null, 2);
+}
 
-  if (!routeLine) {
-    routeLine = new AMap.Polyline({
-      path,
-      strokeColor: "#4da6c8",
-      strokeOpacity: 0.82,
-      strokeWeight: 7,
-      strokeStyle: "dashed",
-      lineJoin: "round",
-      lineCap: "round",
-      zIndex: 40
-    });
-    routeLine.setMap(map);
+function getMinimumScale() {
+  const rect = mapViewport.getBoundingClientRect();
+  return Math.max(rect.width / WORLD.width, rect.height / WORLD.height, 0.65);
+}
+
+function clampView() {
+  const rect = mapViewport.getBoundingClientRect();
+  const minScale = getMinimumScale();
+  state.scale = Math.max(minScale, Math.min(2.4, state.scale));
+
+  const scaledWidth = WORLD.width * state.scale;
+  const scaledHeight = WORLD.height * state.scale;
+
+  if (scaledWidth <= rect.width) {
+    state.tx = (rect.width - scaledWidth) / 2;
   } else {
-    routeLine.setPath(path);
-    routeLine.show();
+    state.tx = Math.min(0, Math.max(rect.width - scaledWidth, state.tx));
   }
-}
 
-function easeToPlace(place, zoom = 13.15) {
-  if (!map) return;
-  if (state.moving && map.stop) map.stop();
-  state.moving = true;
-
-  if (map.setPitch) map.setPitch(state.threeD ? 50 : 0);
-  if (map.setRotation) map.setRotation(state.threeD ? -16 : 0);
-  map.setZoomAndCenter(Math.max(zoom, 12.8), toLngLat(place), false, 800);
-}
-
-function focusInitialMap() {
-  if (!map) return;
-  map.setPitch(0);
-  map.setRotation(0);
-  map.setZoomAndCenter(10.8, [119.1, 36.72], false, 600);
-}
-
-function fitVisiblePlaces() {
-  if (!map) return;
-  const visiblePlaces = filteredPlaces();
-  if (!visiblePlaces.length) return;
-
-  if (map.setPitch) map.setPitch(state.threeD ? 42 : 0);
-  if (map.setRotation) map.setRotation(state.threeD ? -12 : 0);
-
-  const overlays = visiblePlaces.map((place) => markers.get(place.id)).filter(Boolean);
-  if (overlays.length > 1) {
-    map.setFitView(overlays, false, [190, 480, 170, 80], state.threeD ? 10.8 : 11.2);
+  if (scaledHeight <= rect.height) {
+    state.ty = (rect.height - scaledHeight) / 2;
   } else {
-    map.setZoomAndCenter(12.6, toLngLat(visiblePlaces[0]), false, 650);
+    state.ty = Math.min(0, Math.max(rect.height - scaledHeight, state.ty));
   }
+}
+
+function applyTransform() {
+  clampView();
+  mapCanvas.style.transform = `matrix(${state.scale}, 0, 0, ${state.scale}, ${state.tx}, ${state.ty})`;
+}
+
+function centerOnPlace(id) {
+  const place = places.find((item) => item.id === id);
+  if (!place) return;
+  const point = project(place);
+  const rect = mapViewport.getBoundingClientRect();
+  state.tx = rect.width / 2 - point.x * state.scale;
+  state.ty = rect.height / 2 - point.y * state.scale;
+  applyTransform();
 }
 
 function selectPlace(id, moveMap = false) {
-  if (state.selectedId === id) {
-    const current = places.find((item) => item.id === id);
-    if (moveMap && current) easeToPlace(current, map?.getZoom?.() || 13.15);
-    return;
-  }
-
   state.selectedId = id;
-  updateMarkerSelection();
-  updateListSelection();
+  renderMarkers();
+  renderList();
   renderDetail();
-
-  if (moveMap) {
-    const place = places.find((item) => item.id === id);
-    if (place) easeToPlace(place);
-  }
+  if (moveMap) centerOnPlace(id);
 }
 
 function renderAll({ moveMap = false } = {}) {
-  const visiblePlaces = filteredPlaces();
-  if (visiblePlaces.length && !visiblePlaces.some((place) => place.id === state.selectedId)) {
-    state.selectedId = visiblePlaces[0].id;
-    lastDetailId = null;
+  const visible = filteredPlaces();
+  if (visible.length && !visible.some((place) => place.id === state.selectedId)) {
+    state.selectedId = visible[0].id;
   }
-
   renderFilters();
+  renderRoute();
   renderMarkers();
   renderList();
-  updateMarkerSelection();
-  updateListSelection();
   renderDetail();
-  renderRouteLayer();
-  if (moveMap) fitVisiblePlaces();
+  updateLayoutOutput();
+  if (moveMap && state.selectedId) centerOnPlace(state.selectedId);
 }
 
-function toggleThreeD() {
-  state.threeD = !state.threeD;
-  threeDButton.classList.toggle("is-active", state.threeD);
-  threeDButton.setAttribute("aria-pressed", String(state.threeD));
+function toggleEditMode() {
+  state.editMode = !state.editMode;
+  editButton.classList.toggle("is-active", state.editMode);
+  editButton.setAttribute("aria-pressed", String(state.editMode));
+  editPanel.classList.toggle("is-visible", state.editMode);
+  renderMarkers();
+}
 
-  const selected = places.find((place) => place.id === state.selectedId);
-  if (selected) easeToPlace(selected, map?.getZoom?.() || 13.15);
+function zoomBy(delta) {
+  state.scale = Math.max(getMinimumScale(), Math.min(2.4, state.scale + delta));
+  applyTransform();
 }
 
 function advanceTour() {
-  const visiblePlaces = filteredPlaces();
-  if (!visiblePlaces.length) return;
-  const currentIndex = Math.max(0, visiblePlaces.findIndex((place) => place.id === state.selectedId));
-  const nextPlace = visiblePlaces[(currentIndex + 1) % visiblePlaces.length];
-  selectPlace(nextPlace.id, true);
+  const visible = filteredPlaces();
+  if (!visible.length) return;
+  const currentIndex = Math.max(0, visible.findIndex((place) => place.id === state.selectedId));
+  const next = visible[(currentIndex + 1) % visible.length];
+  selectPlace(next.id, true);
 }
 
 function toggleTour() {
   state.touring = !state.touring;
   tourButton.classList.toggle("is-active", state.touring);
   tourButton.setAttribute("aria-pressed", String(state.touring));
-
   if (state.touring) {
     advanceTour();
-    state.tourTimer = window.setInterval(advanceTour, 5200);
+    state.tourTimer = window.setInterval(advanceTour, 4800);
   } else {
     window.clearInterval(state.tourTimer);
   }
 }
+
+let panStart = null;
+let dragMarker = null;
+
+mapViewport.addEventListener("pointerdown", (event) => {
+  if (event.target.closest(".map-marker")) return;
+  panStart = {
+    x: event.clientX,
+    y: event.clientY,
+    tx: state.tx,
+    ty: state.ty
+  };
+});
+
+window.addEventListener("pointermove", (event) => {
+  if (dragMarker) {
+    const point = screenToWorld(event.clientX, event.clientY);
+    state.layout[dragMarker] = {
+      x: Math.max(40, Math.min(WORLD.width - 40, point.x)),
+      y: Math.max(40, Math.min(WORLD.height - 40, point.y))
+    };
+    renderRoute();
+    renderMarkers();
+    updateLayoutOutput();
+    return;
+  }
+
+  if (!panStart) return;
+  state.tx = panStart.tx + event.clientX - panStart.x;
+  state.ty = panStart.ty + event.clientY - panStart.y;
+  applyTransform();
+});
+
+window.addEventListener("pointerup", () => {
+  panStart = null;
+  dragMarker = null;
+});
+
+markerLayer.addEventListener("pointerdown", (event) => {
+  const marker = event.target.closest("[data-place-id]");
+  if (!marker) return;
+  const id = marker.dataset.placeId;
+  if (state.editMode) {
+    dragMarker = id;
+    marker.setPointerCapture?.(event.pointerId);
+  }
+});
+
+markerLayer.addEventListener("click", (event) => {
+  const marker = event.target.closest("[data-place-id]");
+  if (!marker || dragMarker) return;
+  selectPlace(marker.dataset.placeId, true);
+});
+
+placeList.addEventListener("click", (event) => {
+  const card = event.target.closest("[data-place-id]");
+  if (!card) return;
+  if (state.touring) toggleTour();
+  selectPlace(card.dataset.placeId, true);
+});
 
 filters.addEventListener("click", (event) => {
   const button = event.target.closest("[data-category]");
@@ -490,24 +411,22 @@ filters.addEventListener("click", (event) => {
   renderAll({ moveMap: true });
 });
 
-placeList.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-place-id]");
-  if (!button) return;
-  if (state.touring) toggleTour();
-  selectPlace(button.dataset.placeId, true);
-});
-
 searchInput.addEventListener("input", (event) => {
   state.query = event.target.value;
   renderAll({ moveMap: true });
 });
 
-threeDButton.addEventListener("click", toggleThreeD);
+mapViewport.addEventListener("wheel", (event) => {
+  event.preventDefault();
+  zoomBy(event.deltaY > 0 ? -0.08 : 0.08);
+}, { passive: false });
+
+window.addEventListener("resize", applyTransform);
+
+zoomInButton.addEventListener("click", () => zoomBy(0.12));
+zoomOutButton.addEventListener("click", () => zoomBy(-0.12));
+editButton.addEventListener("click", toggleEditMode);
 tourButton.addEventListener("click", toggleTour);
 
-renderFilters();
-renderList();
-renderDetail();
-threeDButton.classList.remove("is-active");
-threeDButton.setAttribute("aria-pressed", "false");
-loadAmap();
+renderAll();
+centerOnPlace(state.selectedId);
