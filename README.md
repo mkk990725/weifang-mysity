@@ -39,7 +39,7 @@
 
 ## 真实地图接入准备
 
-当前网页使用免密钥的 OpenStreetMap 底图做原型，适合验证交互和数据结构。要切换成更真实、更稳定的地图服务，需要先确定地图供应商和准备以下信息：
+当前网页已支持高德地图 JS API，用于展示国内真实路网、楼块和 POI 底图。要继续增强为更完整的真实三维地图，需要先确定地图供应商和准备以下信息：
 
 - Web 端地图 API Key，以及供应商要求的安全配置，例如域名白名单或安全密钥
 - 正式部署域名，用于配置 key 的来源限制
@@ -52,3 +52,22 @@
 - 高德地图 JS API：适合国内真实路网、POI、搜索、路线规划和 3D 地图展示
 - Mapbox 或 MapTiler：适合国际化 WebGL 地图、3D 建筑、卫星影像和自定义视觉风格
 - Cesium：适合更重的真实三维地球、地形、倾斜摄影或 3D Tiles 场景
+
+## 本地配置
+
+项目已支持高德地图 JS API。为了避免把 Key 直接提交到公开仓库，本地运行前复制配置模板：
+
+```text
+config.example.js -> config.js
+```
+
+然后在 `config.js` 中填入：
+
+```js
+window.WEIFANG_MAP_CONFIG = {
+  amapKey: "YOUR_AMAP_WEB_JS_KEY",
+  amapSecurityJsCode: ""
+};
+```
+
+`config.js` 已加入 `.gitignore`，不会被提交。正式上线时，如果是纯静态部署，浏览器仍然会看到 Web JS Key；需要在高德开放平台配置域名白名单和安全密钥，降低被滥用的风险。

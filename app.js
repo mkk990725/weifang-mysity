@@ -1,4 +1,5 @@
 const places = window.WEIFANG_PLACES || [];
+const mapConfig = window.WEIFANG_MAP_CONFIG || {};
 
 const state = {
   activeCategory: "全部",
@@ -7,7 +8,8 @@ const state = {
   threeD: true,
   touring: false,
   tourTimer: null,
-  moving: false
+  moving: false,
+  initialized: false
 };
 
 const categoryColors = {
@@ -18,41 +20,10 @@ const categoryColors = {
   古城: "#5d4b8c"
 };
 
-const map = new maplibregl.Map({
-  container: "map",
-  center: [119.05, 36.72],
-  zoom: 9.45,
-  pitch: 58,
-  bearing: -18,
-  antialias: true,
-  style: {
-    version: 8,
-    sources: {
-      osm: {
-        type: "raster",
-        tiles: ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png"],
-        tileSize: 256,
-        attribution: "© OpenStreetMap contributors"
-      }
-    },
-    layers: [
-      {
-        id: "osm",
-        type: "raster",
-        source: "osm"
-      }
-    ]
-  }
-});
-
-map.addControl(
-  new maplibregl.NavigationControl({
-    visualizePitch: true,
-    showCompass: true,
-    showZoom: true
-  }),
-  "bottom-right"
-);
+let map = null;
+let routeLine = null;
+let lastDetailId = null;
+const markers = new Map();
 
 const filters = document.getElementById("filters");
 const placeList = document.getElementById("placeList");
@@ -60,11 +31,94 @@ const detailPanel = document.getElementById("detailPanel");
 const searchInput = document.getElementById("searchInput");
 const threeDButton = document.getElementById("threeDButton");
 const tourButton = document.getElementById("tourButton");
-const markers = new Map();
-let lastDetailId = null;
+const mapContainer = document.getElementById("map");
 
 function toLngLat(place) {
-  return [place.coordinates[1], place.coordinates[0]];
+  return place.amapPosition || [place.coordinates[1], place.coordinates[0]];
+}
+
+function showMapError(message) {
+  mapContainer.innerHTML = `<div class="map-error"><strong>地图未加载</strong><span>${message}</span></div>`;
+}
+
+function loadAmap() {
+  if (!mapConfig.amapKey) {
+    showMapError("请复制 config.example.js 为 config.js，并填入高德 Web JS API Key。");
+    return;
+  }
+
+  if (mapConfig.amapSecurityJsCode) {
+    window._AMapSecurityConfig = {
+      securityJsCode: mapConfig.amapSecurityJsCode
+    };
+  }
+
+  const script = document.createElement("script");
+  script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(
+    mapConfig.amapKey
+  )}&plugin=AMap.ControlBar,AMap.ToolBar,AMap.Scale`;
+  script.async = true;
+  script.onerror = () => showMapError("高德地图脚本加载失败，请检查 Key、网络和高德后台安全配置。");
+  script.onload = initMap;
+  document.head.appendChild(script);
+}
+
+function initMap() {
+  map = new AMap.Map("map", {
+    viewMode: "3D",
+    center: [119.05, 36.72],
+    zoom: 9.45,
+    pitch: 58,
+    rotation: -18,
+    resizeEnable: true,
+    animateEnable: true,
+    mapStyle: "amap://styles/normal",
+    features: ["bg", "road", "building", "point"]
+  });
+
+  map.addControl(
+    new AMap.ControlBar({
+      position: {
+        right: "18px",
+        bottom: "138px"
+      }
+    })
+  );
+  map.addControl(
+    new AMap.ToolBar({
+      position: {
+        right: "18px",
+        bottom: "76px"
+      }
+    })
+  );
+  map.addControl(new AMap.Scale());
+
+  convertCoordinates().finally(() => {
+    state.initialized = true;
+    renderAll({ moveMap: true });
+    threeDButton.classList.add("is-active");
+  });
+
+  map.on("moveend", () => {
+    state.moving = false;
+  });
+}
+
+function convertCoordinates() {
+  if (!AMap.convertFrom || !places.length) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const gpsPositions = places.map((place) => [place.coordinates[1], place.coordinates[0]]);
+    AMap.convertFrom(gpsPositions, "gps", (status, result) => {
+      if (status === "complete" && result.locations?.length) {
+        result.locations.forEach((location, index) => {
+          places[index].amapPosition = [location.lng, location.lat];
+        });
+      }
+      resolve();
+    });
+  });
 }
 
 function uniqueCategories() {
@@ -120,11 +174,12 @@ function createMarkerElement(place) {
 }
 
 function renderMarkers() {
+  if (!map) return;
   const visibleIds = new Set(filteredPlaces().map((place) => place.id));
 
   markers.forEach((marker, id) => {
     if (!visibleIds.has(id)) {
-      marker.remove();
+      map.remove(marker);
       markers.delete(id);
     }
   });
@@ -132,23 +187,25 @@ function renderMarkers() {
   filteredPlaces().forEach((place) => {
     let marker = markers.get(place.id);
     if (!marker) {
-      marker = new maplibregl.Marker({
-        element: createMarkerElement(place),
-        anchor: "bottom",
-        offset: [0, -8]
-      })
-        .setLngLat(toLngLat(place))
-        .addTo(map);
+      marker = new AMap.Marker({
+        position: toLngLat(place),
+        content: createMarkerElement(place),
+        anchor: "bottom-center",
+        offset: new AMap.Pixel(0, -8)
+      });
+      marker.setMap(map);
       markers.set(place.id, marker);
+    } else {
+      marker.setPosition(toLngLat(place));
     }
 
-    marker.getElement().classList.toggle("is-selected", place.id === state.selectedId);
+    marker.getContent().classList.toggle("is-selected", place.id === state.selectedId);
   });
 }
 
 function updateMarkerSelection() {
   markers.forEach((marker, id) => {
-    marker.getElement().classList.toggle("is-selected", id === state.selectedId);
+    marker.getContent().classList.toggle("is-selected", id === state.selectedId);
   });
 }
 
@@ -239,95 +296,61 @@ function renderDetail() {
 }
 
 function renderRouteLayer() {
-  const visiblePlaces = filteredPlaces();
-  const features =
-    visiblePlaces.length > 1
-      ? [
-          {
-            type: "Feature",
-            geometry: {
-              type: "LineString",
-              coordinates: visiblePlaces.map(toLngLat)
-            }
-          }
-        ]
-      : [];
-
-  const source = map.getSource("place-route");
-  const route = {
-    type: "FeatureCollection",
-    features
-  };
-
-  if (source) {
-    source.setData(route);
+  if (!map) return;
+  const path = filteredPlaces().map(toLngLat);
+  if (path.length < 2) {
+    if (routeLine) routeLine.hide();
     return;
   }
 
-  map.addSource("place-route", {
-    type: "geojson",
-    data: route
-  });
-
-  map.addLayer({
-    id: "place-route-glow",
-    type: "line",
-    source: "place-route",
-    paint: {
-      "line-color": "#f0b35a",
-      "line-opacity": 0.38,
-      "line-width": 8,
-      "line-blur": 4
-    }
-  });
-
-  map.addLayer({
-    id: "place-route",
-    type: "line",
-    source: "place-route",
-    paint: {
-      "line-color": "#a33d2d",
-      "line-opacity": 0.72,
-      "line-width": 2,
-      "line-dasharray": [1.2, 1.2]
-    }
-  });
+  if (!routeLine) {
+    routeLine = new AMap.Polyline({
+      path,
+      strokeColor: "#a33d2d",
+      strokeOpacity: 0.78,
+      strokeWeight: 4,
+      strokeStyle: "dashed",
+      lineJoin: "round",
+      lineCap: "round",
+      zIndex: 40
+    });
+    routeLine.setMap(map);
+  } else {
+    routeLine.setPath(path);
+    routeLine.show();
+  }
 }
 
 function easeToPlace(place, zoom = 13.15) {
-  if (state.moving) map.stop();
+  if (!map) return;
+  if (state.moving && map.stop) map.stop();
   state.moving = true;
 
-  map.easeTo({
-    center: toLngLat(place),
-    zoom,
-    pitch: state.threeD ? 64 : 0,
-    bearing: state.threeD ? -24 : 0,
-    duration: 980,
-    easing: (time) => 1 - Math.pow(1 - time, 3),
-    essential: true
-  });
+  if (map.setPitch) map.setPitch(state.threeD ? 64 : 0);
+  if (map.setRotation) map.setRotation(state.threeD ? -24 : 0);
+  map.setZoomAndCenter(Math.max(zoom, 13.15), toLngLat(place), false, 900);
 }
 
 function fitVisiblePlaces() {
+  if (!map) return;
   const visiblePlaces = filteredPlaces();
   if (!visiblePlaces.length) return;
 
-  const bounds = new maplibregl.LngLatBounds();
-  visiblePlaces.forEach((place) => bounds.extend(toLngLat(place)));
-  map.fitBounds(bounds, {
-    padding: { top: 170, right: 470, bottom: 170, left: 70 },
-    maxZoom: 10.4,
-    pitch: state.threeD ? 56 : 0,
-    bearing: state.threeD ? -18 : 0,
-    duration: 700
-  });
+  if (map.setPitch) map.setPitch(state.threeD ? 56 : 0);
+  if (map.setRotation) map.setRotation(state.threeD ? -18 : 0);
+
+  const overlays = visiblePlaces.map((place) => markers.get(place.id)).filter(Boolean);
+  if (overlays.length > 1) {
+    map.setFitView(overlays, false, [170, 470, 170, 70], 10.4);
+  } else {
+    map.setZoomAndCenter(12.6, toLngLat(visiblePlaces[0]), false, 650);
+  }
 }
 
 function selectPlace(id, moveMap = false) {
   if (state.selectedId === id) {
     const current = places.find((item) => item.id === id);
-    if (moveMap && current) easeToPlace(current, Math.max(map.getZoom(), 13.15));
+    if (moveMap && current) easeToPlace(current, map?.getZoom?.() || 13.15);
     return;
   }
 
@@ -346,6 +369,7 @@ function renderAll({ moveMap = false } = {}) {
   const visiblePlaces = filteredPlaces();
   if (visiblePlaces.length && !visiblePlaces.some((place) => place.id === state.selectedId)) {
     state.selectedId = visiblePlaces[0].id;
+    lastDetailId = null;
   }
 
   renderFilters();
@@ -354,7 +378,7 @@ function renderAll({ moveMap = false } = {}) {
   updateMarkerSelection();
   updateListSelection();
   renderDetail();
-  if (map.loaded()) renderRouteLayer();
+  renderRouteLayer();
   if (moveMap) fitVisiblePlaces();
 }
 
@@ -364,7 +388,7 @@ function toggleThreeD() {
   threeDButton.setAttribute("aria-pressed", String(state.threeD));
 
   const selected = places.find((place) => place.id === state.selectedId);
-  if (selected) easeToPlace(selected, map.getZoom());
+  if (selected) easeToPlace(selected, map?.getZoom?.() || 13.15);
 }
 
 function advanceTour() {
@@ -410,11 +434,7 @@ searchInput.addEventListener("input", (event) => {
 threeDButton.addEventListener("click", toggleThreeD);
 tourButton.addEventListener("click", toggleTour);
 
-map.on("load", () => {
-  renderAll({ moveMap: true });
-  threeDButton.classList.add("is-active");
-});
-
-map.on("moveend", () => {
-  state.moving = false;
-});
+renderFilters();
+renderList();
+renderDetail();
+loadAmap();
