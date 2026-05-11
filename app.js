@@ -65,16 +65,23 @@ function loadAmap() {
 
 function initMap() {
   try {
+    const baseLayer = new AMap.TileLayer({
+      zIndex: 1,
+      opacity: 1,
+      detectRetina: true
+    });
+
     map = new AMap.Map("map", {
       viewMode: "3D",
       center: [119.05, 36.72],
-      zoom: 9.45,
-      pitch: 58,
-      rotation: -18,
+      zoom: 10.6,
+      pitch: 48,
+      rotation: -12,
       resizeEnable: true,
       animateEnable: true,
-      mapStyle: "amap://styles/fresh",
-      features: ["bg", "road", "building", "point"]
+      mapStyle: "amap://styles/normal",
+      features: ["bg", "road", "building", "point"],
+      layers: [baseLayer]
     });
 
     AMap.plugin(["AMap.ControlBar", "AMap.ToolBar", "AMap.Scale"], () => {
@@ -344,12 +351,12 @@ function fitVisiblePlaces() {
   const visiblePlaces = filteredPlaces();
   if (!visiblePlaces.length) return;
 
-  if (map.setPitch) map.setPitch(state.threeD ? 56 : 0);
-  if (map.setRotation) map.setRotation(state.threeD ? -18 : 0);
+  if (map.setPitch) map.setPitch(state.threeD ? 46 : 0);
+  if (map.setRotation) map.setRotation(state.threeD ? -12 : 0);
 
   const overlays = visiblePlaces.map((place) => markers.get(place.id)).filter(Boolean);
   if (overlays.length > 1) {
-    map.setFitView(overlays, false, [170, 470, 170, 70], 10.4);
+    map.setFitView(overlays, false, [170, 470, 170, 70], 11.4);
   } else {
     map.setZoomAndCenter(12.6, toLngLat(visiblePlaces[0]), false, 650);
   }
