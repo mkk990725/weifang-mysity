@@ -3,116 +3,51 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>潍坊好吃好玩地图</title>
-    <link rel="stylesheet" href="./styles.css?v=living-map-20260511f" />
+    <title>潍坊好吃好玩翻页地图</title>
+    <link rel="stylesheet" href="./styles.css?v=flipbook-20260511" />
+    <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.min.js"></script>
   </head>
   <body>
-    <main class="map-app">
-      <section class="top-panel" aria-label="地图工具">
-        <header class="brand">
+    <main class="flipbook-app">
+      <header class="hud">
+        <div class="brand">
           <div>
-            <p>Weifang Living Map</p>
-            <h1>潍坊好吃好玩地图</h1>
+            <p>WEIFANG FLIPBOOK MAP</p>
+            <h1>潍坊好吃好玩翻页地图</h1>
           </div>
-          <span>已核验 5</span>
-        </header>
+          <span id="pageLabel">封面</span>
+        </div>
 
-        <div class="tool-row">
-          <label class="search-box">
+        <div class="hud-row">
+          <label class="search-box" for="searchInput">
             <span>搜索</span>
-            <input id="searchInput" type="search" placeholder="地点、区域、标签" />
+            <input id="searchInput" type="search" placeholder="地点、区县、标签" />
           </label>
-          <button class="icon-action" id="zoomOutButton" type="button" title="缩小">-</button>
-          <button class="icon-action" id="zoomInButton" type="button" title="放大">+</button>
+          <button class="icon-action" id="prevButton" type="button" title="上一页">←</button>
+          <button class="icon-action" id="nextButton" type="button" title="下一页">→</button>
           <button class="icon-action" id="editButton" type="button" aria-pressed="false">编辑</button>
-          <button class="icon-action" id="tourButton" type="button" aria-pressed="false">巡游</button>
+          <div class="page-counter" id="pageCounter">01 / 01</div>
         </div>
 
         <div class="filters" id="filters" aria-label="地点分类"></div>
-      </section>
+      </header>
 
-      <section class="living-map" id="map" aria-label="潍坊手绘活地图">
-        <div class="map-canvas" id="mapCanvas">
-          <svg class="hand-map" id="handMap" viewBox="0 0 1400 900" role="img" aria-label="潍坊手绘地图">
-            <defs>
-              <filter id="ink-wobble">
-                <feTurbulence baseFrequency="0.012" numOctaves="2" seed="7" />
-                <feDisplacementMap in="SourceGraphic" scale="1.4" />
-              </filter>
-            </defs>
-            <rect class="paper-fill" x="0" y="0" width="1400" height="900" />
-            <path class="river river-main" d="M70 645 C230 570 305 610 430 535 C570 450 700 510 850 420 C1020 315 1125 350 1330 265" />
-            <path class="river river-side" d="M500 840 C610 730 680 675 790 610 C890 550 950 500 1010 420" />
-            <path class="road road-highway" d="M-20 130 C210 80 430 125 670 92 C910 60 1085 68 1430 35" />
-            <path class="road road-major" d="M85 420 C250 330 400 360 555 330 C740 300 890 240 1315 210" />
-            <path class="road road-major" d="M150 760 C355 640 560 655 720 590 C890 520 1110 565 1280 450" />
-            <path class="road road-major" d="M90 545 C270 500 475 485 640 455 C830 420 1020 360 1340 330" />
-            <path class="road road-major" d="M-10 700 C220 720 430 810 660 805 C910 802 1100 760 1425 790" />
-            <path class="road road-minor" d="M255 160 C350 285 390 380 500 505 C610 635 710 705 830 785" />
-            <path class="road road-minor" d="M1030 125 C960 265 945 380 900 520 C860 640 800 710 760 835" />
-            <path class="road road-minor" d="M330 705 C430 580 540 520 620 410 C700 300 820 265 990 210" />
-            <path class="road road-minor" d="M680 90 C735 220 725 350 770 475 C820 620 940 715 1040 850" />
-            <path class="road road-minor" d="M1180 95 C1110 210 1080 330 1098 480 C1118 640 1165 730 1240 845" />
-            <g class="building-layer">
-              <g class="building building-tall" transform="translate(675 270)">
-                <polygon class="roof" points="0,20 45,0 98,18 52,39" />
-                <polygon class="front" points="0,20 52,39 52,128 0,108" />
-                <polygon class="side" points="52,39 98,18 98,104 52,128" />
-                <path class="windows" d="M16 43 H37 M16 66 H37 M16 89 H37 M66 55 H83 M66 78 H83" />
-              </g>
-              <g class="building" transform="translate(930 360)">
-                <polygon class="roof" points="0,18 35,0 80,17 45,35" />
-                <polygon class="front" points="0,18 45,35 45,98 0,82" />
-                <polygon class="side" points="45,35 80,17 80,76 45,98" />
-                <path class="windows" d="M13 40 H32 M13 60 H32 M56 45 H70 M56 64 H70" />
-              </g>
-              <g class="building building-low" transform="translate(435 575)">
-                <polygon class="roof" points="0,16 52,0 116,18 62,35" />
-                <polygon class="front" points="0,16 62,35 62,76 0,58" />
-                <polygon class="side" points="62,35 116,18 116,58 62,76" />
-                <path class="windows" d="M15 36 H49 M73 39 H99" />
-              </g>
-            </g>
-            <g class="route-layer" id="routeLayer"></g>
-            <g class="footsteps-layer" id="footstepsLayer"></g>
-            <g class="label-layer">
-              <text x="210" y="250">潍城老街</text>
-              <text x="760" y="330">奎文城心</text>
-              <text x="985" y="585">风筝走廊</text>
-              <text x="430" y="745">青州方向</text>
-              <text class="road-label" x="210" y="405">东风街</text>
-              <text class="road-label" x="875" y="505">胜利街</text>
-              <text class="road-label" x="720" y="575">健康街</text>
-              <text class="road-label vertical-label" x="1035" y="205">北海路</text>
-              <text class="road-label vertical-label" x="700" y="130">潍州路</text>
-              <text class="road-label" x="118" y="115">济青高速方向</text>
-            </g>
-          </svg>
-          <div class="marker-layer" id="markerLayer"></div>
+      <section class="book-stage" aria-label="翻页地图">
+        <div class="book-shell">
+          <div class="book" id="book" aria-live="polite"></div>
         </div>
       </section>
 
-      <section class="map-note" aria-label="数据说明">
-        <strong>真实信息，手绘表达</strong>
-        <span>地点、地址、电话和来源保留真实核验信息；地图路线和点位布局可以编辑，不复制真实底图。</span>
-      </section>
-
-      <button class="list-tab" id="listToggle" type="button" aria-expanded="false" aria-controls="placeList">地点</button>
-
-      <section class="place-strip" id="placeList" aria-label="地点列表"></section>
-
-      <button class="detail-tab" id="detailToggle" type="button" aria-expanded="false" aria-controls="detailPanel">详情</button>
-
-      <aside class="detail-drawer" id="detailPanel" aria-live="polite"></aside>
-
-      <aside class="edit-panel" id="editPanel" aria-label="编辑输出">
+      <aside class="edit-drawer" id="editDrawer" aria-label="布局编辑" hidden>
         <strong>布局编辑</strong>
-        <span>开启编辑后拖动路牌，只改变手绘布局，不改变真实经纬度。</span>
+        <span>拖动总览页上的路牌，只改翻页地图里的布局，不改真实经纬度。</span>
         <textarea id="layoutOutput" readonly></textarea>
       </aside>
+
+      <div class="hint">拖住书页右下角翻页，点击总览页路牌可跳转</div>
     </main>
 
-    <script src="./places.js?v=living-map-20260511f"></script>
-    <script src="./app.js?v=living-map-20260511f"></script>
+    <script src="./places.js?v=flipbook-20260511"></script>
+    <script src="./app.js?v=flipbook-20260511"></script>
   </body>
 </html>
