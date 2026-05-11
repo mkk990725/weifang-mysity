@@ -64,45 +64,52 @@ function loadAmap() {
 }
 
 function initMap() {
-  map = new AMap.Map("map", {
-    viewMode: "3D",
-    center: [119.05, 36.72],
-    zoom: 9.45,
-    pitch: 58,
-    rotation: -18,
-    resizeEnable: true,
-    animateEnable: true,
-    mapStyle: "amap://styles/normal",
-    features: ["bg", "road", "building", "point"]
-  });
+  try {
+    map = new AMap.Map("map", {
+      viewMode: "3D",
+      center: [119.05, 36.72],
+      zoom: 9.45,
+      pitch: 58,
+      rotation: -18,
+      resizeEnable: true,
+      animateEnable: true,
+      mapStyle: "amap://styles/fresh",
+      features: ["bg", "road", "building", "point"]
+    });
 
-  map.addControl(
-    new AMap.ControlBar({
-      position: {
-        right: "18px",
-        bottom: "138px"
-      }
-    })
-  );
-  map.addControl(
-    new AMap.ToolBar({
-      position: {
-        right: "18px",
-        bottom: "76px"
-      }
-    })
-  );
-  map.addControl(new AMap.Scale());
+    AMap.plugin(["AMap.ControlBar", "AMap.ToolBar", "AMap.Scale"], () => {
+      map.addControl(
+        new AMap.ControlBar({
+          position: {
+            right: "18px",
+            bottom: "138px"
+          }
+        })
+      );
+      map.addControl(
+        new AMap.ToolBar({
+          position: {
+            right: "18px",
+            bottom: "76px"
+          }
+        })
+      );
+      map.addControl(new AMap.Scale());
+    });
 
-  convertCoordinates().finally(() => {
-    state.initialized = true;
-    renderAll({ moveMap: true });
-    threeDButton.classList.add("is-active");
-  });
+    convertCoordinates().finally(() => {
+      state.initialized = true;
+      renderAll({ moveMap: true });
+      threeDButton.classList.add("is-active");
+    });
 
-  map.on("moveend", () => {
-    state.moving = false;
-  });
+    map.on("moveend", () => {
+      state.moving = false;
+    });
+  } catch (error) {
+    showMapError("高德地图初始化失败，请检查 Web JS Key 是否启用、域名白名单和安全密钥配置。");
+    console.error(error);
+  }
 }
 
 function convertCoordinates() {
@@ -166,6 +173,7 @@ function createMarkerElement(place) {
   marker.setAttribute("aria-label", place.name);
   marker.innerHTML = `
     <span class="marker-pulse"></span>
+    <span class="marker-post"></span>
     <span class="marker-pin">${place.category}</span>
     <strong>${place.name}</strong>
   `;
@@ -306,9 +314,9 @@ function renderRouteLayer() {
   if (!routeLine) {
     routeLine = new AMap.Polyline({
       path,
-      strokeColor: "#a33d2d",
-      strokeOpacity: 0.78,
-      strokeWeight: 4,
+      strokeColor: "#4da6c8",
+      strokeOpacity: 0.82,
+      strokeWeight: 7,
       strokeStyle: "dashed",
       lineJoin: "round",
       lineCap: "round",

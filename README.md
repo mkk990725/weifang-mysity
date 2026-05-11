@@ -55,13 +55,9 @@
 
 ## 本地配置
 
-项目已支持高德地图 JS API。为了避免把 Key 直接提交到公开仓库，本地运行前复制配置模板：
+项目已支持高德地图 JS API。当前 `config.js` 中放的是 Web JS API Key，前端 Key 在浏览器里本来就是可见的；上线前请在高德开放平台配置域名白名单和安全密钥，降低被滥用风险。
 
-```text
-config.example.js -> config.js
-```
-
-然后在 `config.js` 中填入：
+如果需要换成自己的 Key，修改：
 
 ```js
 window.WEIFANG_MAP_CONFIG = {
@@ -70,4 +66,4 @@ window.WEIFANG_MAP_CONFIG = {
 };
 ```
 
-`config.js` 已加入 `.gitignore`，不会被提交。正式上线时，如果是纯静态部署，浏览器仍然会看到 Web JS Key；需要在高德开放平台配置域名白名单和安全密钥，降低被滥用的风险。
+如果高德后台开启了安全密钥校验，把对应的安全密钥填到 `amapSecurityJsCode`。

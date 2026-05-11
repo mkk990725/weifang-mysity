@@ -51,6 +51,19 @@ button {
   overflow: hidden;
 }
 
+.map-app::before {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(circle at 8% 15%, rgb(255 244 184 / 28%) 0 6%, transparent 7%),
+    radial-gradient(circle at 88% 18%, rgb(255 244 184 / 22%) 0 5%, transparent 6%),
+    linear-gradient(135deg, rgb(140 204 130 / 12%), rgb(68 166 200 / 10%));
+  mix-blend-mode: multiply;
+}
+
 #map {
   position: absolute;
   inset: 0;
@@ -92,6 +105,7 @@ button {
 }
 
 .top-panel {
+  position: absolute;
   top: 18px;
   left: 18px;
   width: min(670px, calc(100vw - 36px));
@@ -101,9 +115,27 @@ button {
   border-radius: 8px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
+  overflow: hidden;
+}
+
+.top-panel::after {
+  position: absolute;
+  right: -18px;
+  bottom: -34px;
+  width: 156px;
+  height: 156px;
+  pointer-events: none;
+  content: "";
+  background: url("./assets/cartoon-map-reference.jpg") center / cover;
+  border: 3px solid rgb(45 107 85 / 46%);
+  border-radius: 50%;
+  opacity: 0.22;
+  transform: rotate(8deg);
 }
 
 .brand {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -144,6 +176,8 @@ h1 {
 }
 
 .tool-row {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: minmax(180px, 1fr) auto auto;
   gap: 10px;
@@ -207,6 +241,8 @@ h1 {
 }
 
 .filters {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -227,10 +263,10 @@ h1 {
   gap: 4px;
   width: min(340px, calc(100vw - 36px));
   padding: 12px 14px;
-  background: rgb(31 33 30 / 82%);
-  border: 1px solid rgb(255 255 255 / 18%);
+  background: rgb(255 250 217 / 92%);
+  border: 2px solid #2d6b55;
   border-radius: 8px;
-  color: #fff;
+  color: var(--ink);
   box-shadow: var(--shadow);
   backdrop-filter: blur(12px);
 }
@@ -240,7 +276,7 @@ h1 {
 }
 
 .map-note span {
-  color: rgb(255 255 255 / 78%);
+  color: #536253;
   font-size: 12px;
   line-height: 1.55;
 }
@@ -263,10 +299,10 @@ h1 {
   padding: 14px;
   text-align: left;
   color: var(--ink);
-  background: rgb(255 253 247 / 94%);
-  border: 1px solid rgb(255 255 255 / 82%);
+  background: #fff5bd;
+  border: 2px solid #2d6b55;
   border-radius: 8px;
-  box-shadow: 0 10px 30px rgb(28 34 28 / 18%);
+  box-shadow: 0 8px 0 rgb(45 107 85 / 22%), 0 14px 30px rgb(28 34 28 / 16%);
   animation: riseIn 460ms ease both;
   animation-delay: var(--delay);
   backdrop-filter: blur(12px);
@@ -338,8 +374,8 @@ h1 {
 
 .place-detail {
   overflow: hidden;
-  background: rgb(255 253 247 / 94%);
-  border: 1px solid rgb(255 255 255 / 82%);
+  background: #fff8cf;
+  border: 2px solid #2d6b55;
   border-radius: 8px;
   backdrop-filter: blur(14px);
 }
@@ -464,12 +500,13 @@ h1 {
   display: grid;
   place-items: center;
   min-width: 54px;
-  height: 32px;
-  padding: 0 12px;
-  background: var(--marker-color);
-  border: 2px solid #fff;
-  border-radius: 16px;
-  box-shadow: 0 12px 24px rgb(0 0 0 / 30%);
+  height: 34px;
+  padding: 0 14px;
+  background: #fff3a6;
+  border: 3px solid var(--marker-color);
+  border-radius: 10px;
+  box-shadow: 0 8px 0 rgb(40 70 54 / 24%), 0 12px 24px rgb(0 0 0 / 22%);
+  color: var(--marker-color);
   font-size: 13px;
   font-weight: 900;
   transition:
@@ -478,16 +515,28 @@ h1 {
     box-shadow 220ms ease;
 }
 
+.marker-post {
+  position: absolute;
+  top: 24px;
+  z-index: 1;
+  width: 6px;
+  height: 34px;
+  background: #895b2a;
+  border: 2px solid #5d3c1d;
+  border-radius: 4px;
+  box-shadow: 0 8px 14px rgb(0 0 0 / 18%);
+}
+
 .map-marker strong {
   position: absolute;
-  top: 38px;
+  top: 50px;
   z-index: 2;
   width: max-content;
   max-width: 180px;
   padding: 5px 8px;
   color: var(--ink);
-  background: rgb(255 253 247 / 94%);
-  border: 1px solid rgb(255 255 255 / 80%);
+  background: #fff9d6;
+  border: 2px solid var(--marker-color);
   border-radius: 6px;
   box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
   font-size: 12px;
@@ -501,10 +550,10 @@ h1 {
 
 .marker-pulse {
   position: absolute;
-  top: 10px;
-  width: 52px;
-  height: 52px;
-  background: color-mix(in srgb, var(--marker-color) 42%, transparent);
+  top: 34px;
+  width: 58px;
+  height: 24px;
+  background: rgb(77 166 200 / 28%);
   border-radius: 50%;
   transform: rotateX(62deg);
   animation: pulse 2.2s ease-out infinite;
