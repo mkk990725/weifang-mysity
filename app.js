@@ -16,6 +16,7 @@ const state = {
   ty: 0,
   editMode: false,
   detailOpen: false,
+  listOpen: false,
   touring: false,
   tourTimer: null,
   layout: {}
@@ -31,6 +32,7 @@ const categoryColors = {
 
 const filters = document.getElementById("filters");
 const placeList = document.getElementById("placeList");
+const listToggle = document.getElementById("listToggle");
 const detailPanel = document.getElementById("detailPanel");
 const detailToggle = document.getElementById("detailToggle");
 const searchInput = document.getElementById("searchInput");
@@ -49,6 +51,7 @@ const viewport = {
   width: window.innerWidth,
   height: window.innerHeight
 };
+const PAN_MARGIN = 260;
 
 const bounds = places.reduce(
   (box, place) => {
@@ -145,26 +148,21 @@ function renderRoute() {
   const points = visible.map(project);
   const path = pathFromPoints(points);
   routeLayer.innerHTML = path
-    ? `<path class="living-route" d="${path}" pathLength="100" />`
+    ? `<path class="living-trail" d="${path}" pathLength="100" />`
     : "";
 
-  const steps = [];
-  for (let index = 1; index < points.length; index += 1) {
-    const start = points[index - 1];
-    const end = points[index];
-    const count = 5;
-    for (let step = 1; step <= count; step += 1) {
-      const t = step / (count + 1);
-      const x = start.x + (end.x - start.x) * t;
-      const y = start.y + (end.y - start.y) * t;
-      const angle = (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI;
-      steps.push(`<g class="footstep" style="--delay:${(index * count + step) * 120}ms" transform="translate(${x} ${y}) rotate(${angle})">
-        <ellipse cx="-5" cy="-3" rx="3" ry="6" />
-        <ellipse cx="5" cy="3" rx="3" ry="6" />
-      </g>`);
-    }
+  if (!path) {
+    footstepsLayer.innerHTML = "";
+    return;
   }
-  footstepsLayer.innerHTML = steps.join("");
+
+  footstepsLayer.innerHTML = [0, 1.5, 3]
+    .map((delay) => `<g class="map-walker">
+        <circle cx="0" cy="-12" r="5" />
+        <path d="M0 -7 L0 8 M-9 0 L9 0 M0 8 L-8 18 M0 8 L8 18" />
+        <animateMotion dur="7.5s" begin="${delay}s" repeatCount="indefinite" rotate="auto" path="${path}" />
+      </g>`)
+    .join("");
 }
 
 function renderMarkers() {
@@ -256,6 +254,13 @@ function setDetailOpen(open) {
   detailToggle.setAttribute("aria-expanded", String(state.detailOpen));
 }
 
+function setListOpen(open) {
+  state.listOpen = open;
+  placeList.classList.toggle("is-open", state.listOpen);
+  listToggle.classList.toggle("is-open", state.listOpen);
+  listToggle.setAttribute("aria-expanded", String(state.listOpen));
+}
+
 function updateSelectionClasses() {
   markerLayer.querySelectorAll("[data-place-id]").forEach((marker) => {
     marker.classList.toggle("is-selected", marker.dataset.placeId === state.selectedId);
@@ -276,8 +281,20 @@ function updateLayoutOutput() {
   layoutOutput.value = JSON.stringify(data, null, 2);
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getFitScale() {
+  return Math.min(viewport.width / WORLD.width, viewport.height / WORLD.height);
+}
+
 function getMinimumScale() {
-  return Math.max(viewport.width / WORLD.width, viewport.height / WORLD.height, 0.65);
+  return Math.max(0.36, getFitScale() * 0.48);
+}
+
+function getInitialScale() {
+  return clamp(getFitScale() * 0.86, getMinimumScale(), 1);
 }
 
 function clampView() {
@@ -287,17 +304,8 @@ function clampView() {
   const scaledWidth = WORLD.width * state.scale;
   const scaledHeight = WORLD.height * state.scale;
 
-  if (scaledWidth <= viewport.width) {
-    state.tx = (viewport.width - scaledWidth) / 2;
-  } else {
-    state.tx = Math.min(0, Math.max(viewport.width - scaledWidth, state.tx));
-  }
-
-  if (scaledHeight <= viewport.height) {
-    state.ty = (viewport.height - scaledHeight) / 2;
-  } else {
-    state.ty = Math.min(0, Math.max(viewport.height - scaledHeight, state.ty));
-  }
+  state.tx = clamp(state.tx, viewport.width - scaledWidth - PAN_MARGIN, PAN_MARGIN);
+  state.ty = clamp(state.ty, viewport.height - scaledHeight - PAN_MARGIN, PAN_MARGIN);
 }
 
 function applyTransform() {
@@ -311,6 +319,13 @@ function centerOnPlace(id) {
   const point = project(place);
   state.tx = viewport.width / 2 - point.x * state.scale;
   state.ty = viewport.height / 2 - point.y * state.scale;
+  applyTransform();
+}
+
+function centerMap() {
+  state.scale = getInitialScale();
+  state.tx = (viewport.width - WORLD.width * state.scale) / 2;
+  state.ty = (viewport.height - WORLD.height * state.scale) / 2;
   applyTransform();
 }
 
@@ -475,7 +490,10 @@ zoomOutButton.addEventListener("click", () => zoomBy(-0.12));
 editButton.addEventListener("click", toggleEditMode);
 tourButton.addEventListener("click", toggleTour);
 detailToggle.addEventListener("click", () => setDetailOpen(!state.detailOpen));
+listToggle.addEventListener("click", () => setListOpen(!state.listOpen));
 
 refreshViewport();
 renderAll();
-centerOnPlace(state.selectedId);
+setListOpen(false);
+setDetailOpen(false);
+centerMap();

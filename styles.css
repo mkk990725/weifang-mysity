@@ -114,6 +114,13 @@ button {
   opacity: 0.7;
 }
 
+.road-highway {
+  stroke: #c9873f;
+  stroke-width: 18;
+  stroke-dasharray: 44 18;
+  opacity: 0.62;
+}
+
 .road-minor {
   stroke: #775233;
   stroke-width: 5;
@@ -128,21 +135,74 @@ button {
   letter-spacing: 2px;
 }
 
-.living-route {
+.label-layer .road-label {
+  fill: rgb(89 67 43 / 58%);
+  font-size: 19px;
+}
+
+.label-layer .vertical-label {
+  writing-mode: tb;
+}
+
+.building {
+  opacity: 0.9;
+}
+
+.building .roof {
+  fill: #d7a45a;
+  stroke: #72451f;
+  stroke-width: 3;
+}
+
+.building .front {
+  fill: #f0ce86;
+  stroke: #72451f;
+  stroke-width: 3;
+}
+
+.building .side {
+  fill: #b8793e;
+  stroke: #72451f;
+  stroke-width: 3;
+}
+
+.building .windows {
   fill: none;
-  stroke: #2d2118;
-  stroke-width: 5;
+  stroke: rgb(45 33 24 / 55%);
+  stroke-linecap: round;
+  stroke-width: 4;
+}
+
+.building-tall {
+  filter: drop-shadow(12px 18px 8px rgb(61 39 18 / 20%));
+}
+
+.building-low {
+  opacity: 0.78;
+}
+
+.living-trail {
+  fill: none;
+  stroke: rgb(80 53 28 / 28%);
+  stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-dasharray: 9 13;
+  stroke-dasharray: 2 18;
   animation: routeWalk 7s linear infinite;
 }
 
-.footstep {
+.map-walker {
   fill: #2d2118;
-  opacity: 0;
-  animation: footFade 2.6s ease-in-out infinite;
+  opacity: 0.12;
+  animation: walkerMove 3.2s ease-in-out infinite;
   animation-delay: var(--delay);
+}
+
+.map-walker path {
+  fill: none;
+  stroke: #2d2118;
+  stroke-linecap: round;
+  stroke-width: 4;
 }
 
 .marker-layer {
@@ -228,6 +288,7 @@ button {
 
 .top-panel,
 .map-note,
+.list-tab,
 .place-strip,
 .detail-tab,
 .detail-drawer,
@@ -408,6 +469,38 @@ h1 {
   gap: 12px;
   overflow-x: auto;
   padding: 4px 3px 10px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(100% + 24px));
+  transition: transform 220ms ease, opacity 160ms ease;
+}
+
+.place-strip.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.list-tab {
+  left: 50%;
+  bottom: 14px;
+  z-index: 35;
+  min-width: 88px;
+  height: 42px;
+  padding: 0 18px;
+  color: #fff;
+  background: var(--green);
+  border: 2px solid rgb(255 246 206 / 88%);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  font-weight: 900;
+  transform: translateX(-50%);
+  transition: bottom 220ms ease, background 180ms ease;
+}
+
+.list-tab.is-open {
+  bottom: 176px;
+  background: var(--red);
 }
 
 .place-card {
@@ -670,15 +763,15 @@ h1 {
   }
 }
 
-@keyframes footFade {
+@keyframes walkerMove {
   0%,
   100% {
-    opacity: 0;
+    opacity: 0.12;
   }
 
   35%,
   65% {
-    opacity: 0.65;
+    opacity: 0.88;
   }
 }
 
@@ -716,6 +809,10 @@ h1 {
 
   .detail-tab.is-open {
     right: 10px;
+  }
+
+  .list-tab.is-open {
+    bottom: 132px;
   }
 
   .map-note,
