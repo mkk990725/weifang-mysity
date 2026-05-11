@@ -15,6 +15,7 @@ const state = {
   tx: 0,
   ty: 0,
   editMode: false,
+  detailOpen: false,
   touring: false,
   tourTimer: null,
   layout: {}
@@ -31,6 +32,7 @@ const categoryColors = {
 const filters = document.getElementById("filters");
 const placeList = document.getElementById("placeList");
 const detailPanel = document.getElementById("detailPanel");
+const detailToggle = document.getElementById("detailToggle");
 const searchInput = document.getElementById("searchInput");
 const markerLayer = document.getElementById("markerLayer");
 const routeLayer = document.getElementById("routeLayer");
@@ -43,6 +45,10 @@ const zoomOutButton = document.getElementById("zoomOutButton");
 const editPanel = document.getElementById("editPanel");
 const layoutOutput = document.getElementById("layoutOutput");
 const mapViewport = document.getElementById("map");
+const viewport = {
+  width: window.innerWidth,
+  height: window.innerHeight
+};
 
 const bounds = places.reduce(
   (box, place) => {
@@ -77,6 +83,11 @@ function screenToWorld(clientX, clientY) {
     x: (clientX - rect.left - state.tx) / state.scale,
     y: (clientY - rect.top - state.ty) / state.scale
   };
+}
+
+function refreshViewport() {
+  viewport.width = mapViewport.clientWidth;
+  viewport.height = mapViewport.clientHeight;
 }
 
 function uniqueCategories() {
@@ -238,6 +249,23 @@ function renderDetail() {
   `;
 }
 
+function setDetailOpen(open) {
+  state.detailOpen = open;
+  detailPanel.classList.toggle("is-open", state.detailOpen);
+  detailToggle.classList.toggle("is-open", state.detailOpen);
+  detailToggle.setAttribute("aria-expanded", String(state.detailOpen));
+}
+
+function updateSelectionClasses() {
+  markerLayer.querySelectorAll("[data-place-id]").forEach((marker) => {
+    marker.classList.toggle("is-selected", marker.dataset.placeId === state.selectedId);
+  });
+
+  placeList.querySelectorAll("[data-place-id]").forEach((card) => {
+    card.classList.toggle("is-active", card.dataset.placeId === state.selectedId);
+  });
+}
+
 function updateLayoutOutput() {
   const data = Object.fromEntries(
     Object.entries(state.layout).map(([id, point]) => [id, {
@@ -249,28 +277,26 @@ function updateLayoutOutput() {
 }
 
 function getMinimumScale() {
-  const rect = mapViewport.getBoundingClientRect();
-  return Math.max(rect.width / WORLD.width, rect.height / WORLD.height, 0.65);
+  return Math.max(viewport.width / WORLD.width, viewport.height / WORLD.height, 0.65);
 }
 
 function clampView() {
-  const rect = mapViewport.getBoundingClientRect();
   const minScale = getMinimumScale();
   state.scale = Math.max(minScale, Math.min(2.4, state.scale));
 
   const scaledWidth = WORLD.width * state.scale;
   const scaledHeight = WORLD.height * state.scale;
 
-  if (scaledWidth <= rect.width) {
-    state.tx = (rect.width - scaledWidth) / 2;
+  if (scaledWidth <= viewport.width) {
+    state.tx = (viewport.width - scaledWidth) / 2;
   } else {
-    state.tx = Math.min(0, Math.max(rect.width - scaledWidth, state.tx));
+    state.tx = Math.min(0, Math.max(viewport.width - scaledWidth, state.tx));
   }
 
-  if (scaledHeight <= rect.height) {
-    state.ty = (rect.height - scaledHeight) / 2;
+  if (scaledHeight <= viewport.height) {
+    state.ty = (viewport.height - scaledHeight) / 2;
   } else {
-    state.ty = Math.min(0, Math.max(rect.height - scaledHeight, state.ty));
+    state.ty = Math.min(0, Math.max(viewport.height - scaledHeight, state.ty));
   }
 }
 
@@ -283,17 +309,16 @@ function centerOnPlace(id) {
   const place = places.find((item) => item.id === id);
   if (!place) return;
   const point = project(place);
-  const rect = mapViewport.getBoundingClientRect();
-  state.tx = rect.width / 2 - point.x * state.scale;
-  state.ty = rect.height / 2 - point.y * state.scale;
+  state.tx = viewport.width / 2 - point.x * state.scale;
+  state.ty = viewport.height / 2 - point.y * state.scale;
   applyTransform();
 }
 
-function selectPlace(id, moveMap = false) {
+function selectPlace(id, { moveMap = false, openDetail = true } = {}) {
   state.selectedId = id;
-  renderMarkers();
-  renderList();
+  updateSelectionClasses();
   renderDetail();
+  if (openDetail) setDetailOpen(true);
   if (moveMap) centerOnPlace(id);
 }
 
@@ -319,9 +344,9 @@ function toggleEditMode() {
   renderMarkers();
 }
 
-function zoomBy(delta) {
+function zoomBy(delta, apply = true) {
   state.scale = Math.max(getMinimumScale(), Math.min(2.4, state.scale + delta));
-  applyTransform();
+  if (apply) applyTransform();
 }
 
 function advanceTour() {
@@ -329,7 +354,7 @@ function advanceTour() {
   if (!visible.length) return;
   const currentIndex = Math.max(0, visible.findIndex((place) => place.id === state.selectedId));
   const next = visible[(currentIndex + 1) % visible.length];
-  selectPlace(next.id, true);
+  selectPlace(next.id, { moveMap: true });
 }
 
 function toggleTour() {
@@ -346,9 +371,22 @@ function toggleTour() {
 
 let panStart = null;
 let dragMarker = null;
+let frameRequested = false;
+
+function scheduleTransform() {
+  if (frameRequested) return;
+  frameRequested = true;
+  window.requestAnimationFrame(() => {
+    frameRequested = false;
+    applyTransform();
+  });
+}
 
 mapViewport.addEventListener("pointerdown", (event) => {
   if (event.target.closest(".map-marker")) return;
+  refreshViewport();
+  mapViewport.setPointerCapture?.(event.pointerId);
+  mapCanvas.classList.add("is-dragging");
   panStart = {
     x: event.clientX,
     y: event.clientY,
@@ -373,12 +411,13 @@ window.addEventListener("pointermove", (event) => {
   if (!panStart) return;
   state.tx = panStart.tx + event.clientX - panStart.x;
   state.ty = panStart.ty + event.clientY - panStart.y;
-  applyTransform();
+  scheduleTransform();
 });
 
 window.addEventListener("pointerup", () => {
   panStart = null;
   dragMarker = null;
+  mapCanvas.classList.remove("is-dragging");
 });
 
 markerLayer.addEventListener("pointerdown", (event) => {
@@ -394,14 +433,14 @@ markerLayer.addEventListener("pointerdown", (event) => {
 markerLayer.addEventListener("click", (event) => {
   const marker = event.target.closest("[data-place-id]");
   if (!marker || dragMarker) return;
-  selectPlace(marker.dataset.placeId, true);
+  selectPlace(marker.dataset.placeId);
 });
 
 placeList.addEventListener("click", (event) => {
   const card = event.target.closest("[data-place-id]");
   if (!card) return;
   if (state.touring) toggleTour();
-  selectPlace(card.dataset.placeId, true);
+  selectPlace(card.dataset.placeId);
 });
 
 filters.addEventListener("click", (event) => {
@@ -418,15 +457,25 @@ searchInput.addEventListener("input", (event) => {
 
 mapViewport.addEventListener("wheel", (event) => {
   event.preventDefault();
-  zoomBy(event.deltaY > 0 ? -0.08 : 0.08);
+  refreshViewport();
+  const before = screenToWorld(event.clientX, event.clientY);
+  zoomBy(event.deltaY > 0 ? -0.08 : 0.08, false);
+  state.tx = event.clientX - before.x * state.scale;
+  state.ty = event.clientY - before.y * state.scale;
+  applyTransform();
 }, { passive: false });
 
-window.addEventListener("resize", applyTransform);
+window.addEventListener("resize", () => {
+  refreshViewport();
+  applyTransform();
+});
 
 zoomInButton.addEventListener("click", () => zoomBy(0.12));
 zoomOutButton.addEventListener("click", () => zoomBy(-0.12));
 editButton.addEventListener("click", toggleEditMode);
 tourButton.addEventListener("click", toggleTour);
+detailToggle.addEventListener("click", () => setDetailOpen(!state.detailOpen));
 
+refreshViewport();
 renderAll();
 centerOnPlace(state.selectedId);
