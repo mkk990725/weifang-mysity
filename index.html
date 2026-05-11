@@ -8,7 +8,10 @@
   </head>
   <body>
     <main class="map-app">
-      <div id="map" aria-label="潍坊好吃好玩地图"></div>
+      <div id="map" aria-label="潍坊好吃好玩地图">
+        <div class="fallback-tiles" id="fallbackTiles" aria-hidden="true"></div>
+        <div class="tile-attribution">© AutoNavi</div>
+      </div>
 
       <section class="top-panel" aria-label="地图工具">
         <header class="brand">
@@ -24,7 +27,7 @@
             <span>搜索</span>
             <input id="searchInput" type="search" placeholder="地点、区域、标签" />
           </label>
-          <button class="icon-action" id="threeDButton" type="button" aria-pressed="true">3D</button>
+          <button class="icon-action" id="threeDButton" type="button" aria-pressed="false">3D</button>
           <button class="icon-action" id="tourButton" type="button" aria-pressed="false">巡游</button>
         </div>
 

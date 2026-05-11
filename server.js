@@ -15,7 +15,8 @@ const types = {
 };
 
 const server = http.createServer((request, response) => {
-  const requestPath = request.url === "/" ? "/index.html" : decodeURI(request.url.split("?")[0]);
+  const cleanPath = decodeURI(request.url.split("?")[0]);
+  const requestPath = cleanPath === "/" ? "/index.html" : cleanPath;
   const filePath = path.normalize(path.join(root, requestPath));
 
   if (!filePath.startsWith(root)) {

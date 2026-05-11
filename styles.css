@@ -54,7 +54,44 @@ button {
 #map {
   position: absolute;
   inset: 0;
+  z-index: 0;
   background: #eef4e5;
+}
+
+.fallback-tiles {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  background: #eef4e5;
+  pointer-events: none;
+}
+
+.fallback-tile {
+  position: absolute;
+  width: 256px;
+  height: 256px;
+  user-select: none;
+  border: 0;
+}
+
+.tile-attribution {
+  position: absolute;
+  right: 8px;
+  bottom: 2px;
+  z-index: 4;
+  padding: 2px 5px;
+  color: #345;
+  background: rgb(255 255 255 / 78%);
+  border-radius: 4px;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.amap-container,
+.amap-layers,
+.amap-maps {
+  background: transparent !important;
 }
 
 .map-error {
@@ -88,7 +125,7 @@ button {
 .place-strip,
 .detail-drawer {
   position: absolute;
-  z-index: 5;
+  z-index: 50;
 }
 
 .top-panel {

@@ -5,7 +5,7 @@ const state = {
   activeCategory: "全部",
   query: "",
   selectedId: places[0]?.id,
-  threeD: true,
+  threeD: false,
   touring: false,
   tourTimer: null,
   moving: false,
@@ -32,9 +32,55 @@ const searchInput = document.getElementById("searchInput");
 const threeDButton = document.getElementById("threeDButton");
 const tourButton = document.getElementById("tourButton");
 const mapContainer = document.getElementById("map");
+const fallbackTiles = document.getElementById("fallbackTiles");
 
 function toLngLat(place) {
   return place.amapPosition || [place.coordinates[1], place.coordinates[0]];
+}
+
+function lngLatToTile(lng, lat, zoom) {
+  const sinLat = Math.sin((lat * Math.PI) / 180);
+  const scale = 2 ** zoom;
+  return {
+    x: ((lng + 180) / 360) * scale,
+    y: (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale
+  };
+}
+
+function renderFallbackTiles() {
+  if (!map || !fallbackTiles) return;
+
+  const zoom = Math.max(3, Math.min(18, Math.floor(map.getZoom())));
+  const center = map.getCenter();
+  const centerTile = lngLatToTile(center.lng, center.lat, zoom);
+  const mapRect = mapContainer.getBoundingClientRect();
+  const tileSize = 256;
+  const columns = Math.ceil(mapRect.width / tileSize) + 3;
+  const rows = Math.ceil(mapRect.height / tileSize) + 3;
+  const startX = Math.floor(centerTile.x - columns / 2);
+  const startY = Math.floor(centerTile.y - rows / 2);
+  const maxTile = 2 ** zoom;
+  const centerOffsetX = mapRect.width / 2 - (centerTile.x - Math.floor(centerTile.x)) * tileSize;
+  const centerOffsetY = mapRect.height / 2 - (centerTile.y - Math.floor(centerTile.y)) * tileSize;
+  const tiles = [];
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const x = startX + column;
+      const y = startY + row;
+      if (y < 0 || y >= maxTile) continue;
+
+      const wrappedX = ((x % maxTile) + maxTile) % maxTile;
+      const left = centerOffsetX + (x - Math.floor(centerTile.x)) * tileSize;
+      const top = centerOffsetY + (y - Math.floor(centerTile.y)) * tileSize;
+      const subdomain = ((wrappedX + y) % 4) + 1;
+      tiles.push(
+        `<img class="fallback-tile" src="https://webrd0${subdomain}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x=${wrappedX}&y=${y}&z=${zoom}" alt="" style="left:${left}px;top:${top}px" onerror="this.style.display='none'" />`
+      );
+    }
+  }
+
+  fallbackTiles.innerHTML = tiles.join("");
 }
 
 function showMapError(message) {
@@ -74,9 +120,9 @@ function initMap() {
     map = new AMap.Map("map", {
       viewMode: "3D",
       center: [119.05, 36.72],
-      zoom: 10.6,
-      pitch: 48,
-      rotation: -12,
+      zoom: 10.8,
+      pitch: 0,
+      rotation: 0,
       resizeEnable: true,
       animateEnable: true,
       mapStyle: "amap://styles/normal",
@@ -106,13 +152,16 @@ function initMap() {
 
     convertCoordinates().finally(() => {
       state.initialized = true;
-      renderAll({ moveMap: true });
-      threeDButton.classList.add("is-active");
+      renderAll({ moveMap: false });
+      focusInitialMap();
+      renderFallbackTiles();
     });
 
     map.on("moveend", () => {
       state.moving = false;
+      renderFallbackTiles();
     });
+    map.on("zoomend", renderFallbackTiles);
   } catch (error) {
     showMapError("高德地图初始化失败，请检查 Web JS Key 是否启用、域名白名单和安全密钥配置。");
     console.error(error);
@@ -341,9 +390,16 @@ function easeToPlace(place, zoom = 13.15) {
   if (state.moving && map.stop) map.stop();
   state.moving = true;
 
-  if (map.setPitch) map.setPitch(state.threeD ? 64 : 0);
-  if (map.setRotation) map.setRotation(state.threeD ? -24 : 0);
-  map.setZoomAndCenter(Math.max(zoom, 13.15), toLngLat(place), false, 900);
+  if (map.setPitch) map.setPitch(state.threeD ? 50 : 0);
+  if (map.setRotation) map.setRotation(state.threeD ? -16 : 0);
+  map.setZoomAndCenter(Math.max(zoom, 12.8), toLngLat(place), false, 800);
+}
+
+function focusInitialMap() {
+  if (!map) return;
+  map.setPitch(0);
+  map.setRotation(0);
+  map.setZoomAndCenter(10.8, [119.1, 36.72], false, 600);
 }
 
 function fitVisiblePlaces() {
@@ -351,12 +407,12 @@ function fitVisiblePlaces() {
   const visiblePlaces = filteredPlaces();
   if (!visiblePlaces.length) return;
 
-  if (map.setPitch) map.setPitch(state.threeD ? 46 : 0);
+  if (map.setPitch) map.setPitch(state.threeD ? 42 : 0);
   if (map.setRotation) map.setRotation(state.threeD ? -12 : 0);
 
   const overlays = visiblePlaces.map((place) => markers.get(place.id)).filter(Boolean);
   if (overlays.length > 1) {
-    map.setFitView(overlays, false, [170, 470, 170, 70], 11.4);
+    map.setFitView(overlays, false, [190, 480, 170, 80], state.threeD ? 10.8 : 11.2);
   } else {
     map.setZoomAndCenter(12.6, toLngLat(visiblePlaces[0]), false, 650);
   }
@@ -452,4 +508,6 @@ tourButton.addEventListener("click", toggleTour);
 renderFilters();
 renderList();
 renderDetail();
+threeDButton.classList.remove("is-active");
+threeDButton.setAttribute("aria-pressed", "false");
 loadAmap();
